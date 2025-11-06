@@ -1,0 +1,63 @@
+# --- Python & Environment ---
+# Python cache files
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments (even though we use Conda, good to have)
+venv/
+.env
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# --- OS-specific ---
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# --- IDEs & Editors ---
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# Visual Studio (Full IDE)
+*.sln
+*.suo
+*.user
+*.vcxproj*
+[Bb]in/
+[Dd]ebug/
+[Rr]elease/
+[Oo]bj/
+x64/
+.vs/
+
+# --- Project-Specific (ML/Data) ---
+
+# 1. Ignore ALL trained models (large binary files)
+# We track the 'models/' folder, but not its contents.
+models/*
+# Add an exception for a placeholder file, if you have one
+!models/.gitkeep
+
+# 2. Ignore ALL generated output images
+data/output/
+# We track the 'data/output/' folder, but not its contents.
+!data/output/.gitkeep
+
+# 3. Ignore ALL large dataset files
+# We track the 'data/' folder structure, but not the images.
+data/INTEL-TAU/
+data/Cube++/
+# Add other dataset folders here
+
+# 4. Ignore ALL log files
+logs/
+*.log
+*.csv

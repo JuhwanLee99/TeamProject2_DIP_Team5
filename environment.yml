@@ -1,0 +1,26 @@
+# This file defines the Conda environment for the project.
+# To create the environment, run:
+#   conda env create -f environment.yml
+# To activate the environment, run:
+#   conda activate dip-hybrid
+#
+name: dip-hybrid
+channels:
+  - pytorch   # Primary channel for PyTorch
+  - conda-forge # Primary channel for most other packages
+  - defaults
+dependencies:
+  # --- Core ---
+  - python=3.10     # Specify Python version
+  - pip
+  - numpy
+
+  # --- ML Framework ---
+  - pytorch         # Installs PyTorch (CPU or GPU)
+  - torchvision
+
+  # --- DIP & Utilities ---
+  - opencv          # For io_utils.py
+  - matplotlib      # For visualization.py
+  - scikit-image    # For metrics (optional)
+  - tqdm            # For progress bars
