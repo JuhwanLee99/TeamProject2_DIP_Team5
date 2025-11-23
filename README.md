@@ -1,22 +1,24 @@
-# 🎨 Image Color Harmony Adjuster  
-**Team 05**
+# 🎨 AI-Powered Image Color Harmony Adjuster
+**Team 05 (Global Team)**
 
-This project was developed for the **Digital Image Processing** course.  
-The goal is to build a system that **automatically analyzes and corrects color imbalances** in digital images caused by various lighting conditions.
+> **Digital Image Processing Team Project #2** > A hybrid system that automatically analyzes and corrects color imbalances using **Deep Learning** for parameter estimation and **Manually Implemented Algorithms** for image correction.
 
 ---
 
-## Project Logic
-1. Core DIP Logic (Manual & Differentiable):
-The src/correction.py file contains manually implemented DIP functions (e.g., apply_gamma, apply_white_balance). These functions are written using PyTorch tensor operations instead of NumPy, making them fully differentiable. This satisfies the "own implementation" requirement.
+### 1. ✅ Core Logic (Manual Implementation)
+We **manually implemented** the fundamental image processing algorithms using **PyTorch tensor operations**. These functions are fully differentiable.
+* **Location:** `src/correction.py`, `src/conversions.py`
+* **Implemented Algorithms:**
+    * **Color Space Conversion:** RGB $\leftrightarrow$ HSV (Manual formula implementation)
+    * **White Balance:** Gray-World Assumption based Gain adjustment
+    * **Gamma Correction:** Power-law transformation ($I_{out} = I_{in}^{\gamma}$)
+    * **Saturation/Hue Adjustment:** Pixel-wise tensor manipulation
 
-2. ML as a Supplementary Tool (Automatic):
-The src/model.py defines a Deep Learning model (CNN) that acts as a "supplementary tool." It analyzes an image and predicts the optimal parameters (e.g., gamma=1.15, saturation=1.1) required by the manual functions.
-
-3. Process:
-- train.py: Teaches the model to predict parameters. The model's predicted parameters are fed into the src/correction.py functions to generate a corrected image inside the training loop. The loss is calculated between this corrected image and the ground-truth image, allowing the model to be trained via backpropagation.
-
-- predict.py: Uses the trained model to get parameters for a new image, then feeds those parameters into the same manual src/correction.py functions to get the final, corrected result.
+### 2. 🧠 AI as a Supplementary Tool (Automatic Analysis)
+Instead of using a "Black Box" model to generate the image directly, our CNN model acts as a **"Parameter Predictor"**.
+* **Location:** `src/model.py`, `train.py`
+* **Mechanism:** The model analyzes the input image and predicts the *optimal parameters* (e.g., Gamma=1.2, R_Gain=1.05) for the manual functions.
+* **Benefit:** This ensures the final image modification is done purely by our manual code, satisfying the assignment constraints.
 
 ---
 
@@ -66,36 +68,30 @@ feat: Implement null algorithm
 The project follows a modular design, organizing all logic into separate modules under `src/`.
 
 ```markdown
-/DIP_Project2/         
+DIP_Team05_Project/
 │
-├── .gitignore                
-├── README.md                
-├── environment.yml           # library dependencies
+├── .gitignore
+├── README.md
+├── environment.yml           # Conda environment dependencies
+├── requirements.txt          # Pip dependencies (alternative)
 │
-├── train.py                  # <<< Script to train the model
-├── predict.py                # <<< Script to run prediction on new images
+├── train.py                  # [Phase 1] Train the Parameter Prediction Model
+├── predict.py                # [Phase 2] Run inference on new images
 │
-├── src/                      # <<< ALL SOURCE CODE MODULES
-│   ├── dataset.py            # Loads and transforms training data (image pairs)
-│   ├── model.py              # ML model architecture (predicts parameters)
-│   ├── correction.py         # <<< CORE: Manual DIP logic (implemented in PyTorch)
-│   ├── io_utils.py           # OpenCV functions for reading/saving images
-|   ├── conversions.py        # 
-│   └── visualization.py      # Matplotlib functions for plotting results
+├── src/                      # <<< SOURCE CODE MODULES
+│   ├── dataset.py            # Custom Dataset Loader (Input/GroundTruth pairs)
+│   ├── model.py              # CNN Architecture (Predicts 6 correction parameters)
+│   ├── correction.py         # <<< CORE: Manual DIP algorithms (Differentiable)
+│   ├── conversions.py        # <<< CORE: Manual RGB<->HSV conversion logic
+│   ├── io_utils.py           # OpenCV I/O wrapper
+│   └── visualization.py      # Matplotlib visualization tools
 │
 ├── data/
-│   ├── INTEL-TAU/            # (Example) Dataset root
-│   │   ├── ... (image files)
-│   │
-│   ├── input/                # Add sample images for testing here
-│   │   └── sample1.jpg
-│   └── output/               # Corrected images (ignored by Git)
-|
-├── models/                   # Folder for saved model checkpoints (ignored by Git)
-|    └── .gitignore           # Ignores large .pth (model weight) files
-|
-└── docs/                     # Project documents (reports, plans)
-    └── Survey_and_Plan_Report.docx
+│   ├── INTEL-TAU/            # Training Dataset (External)
+│   ├── input/                # Test images
+│   └── output/               # Result images
+│
+└── models/                   # Saved model checkpoints (.pth)
 ```
 
 --- 
@@ -137,27 +133,28 @@ conda activate DIP_Project2
 3. Type Python: Select Interpreter.
 4. VS Code should automatically detect and suggest the DIP_Project2 Conda environment. Select it. (It will look something like .../miniconda3/envs/DIP_Project2/bin/python).
 
-## Download Dataset
-Download the dataset (e.g., INTEL-TAU, Cube++) and place it in the data/ directory. You will need to update src/dataset.py to point to the correct file paths.
+---
 
-## ▶️ How to Run the Program
-Ensure your dip-hybrid Conda environment is active.
-### Phase 1: Train the Model
-Run train.py. The model will learn to output a vector of parameters.
+# ▶️ Usage Guide
 
-```bash
+## Phase 1: Train the ModelTrain the AI to learn how to predict color correction parameters.
+```Bash
 python train.py
 ```
-This will save a hybrid_model.pth file in the models/ directory.
-
-### Phase 2: Predict with the Hybrid Model
-Run predict.py. This script will:
-1. Load the trained model (models/hybrid_model.pth).
-2. Model predicts parameters (e.g., [gamma: 1.15, r_gain: 1.05, ...]).
-3. Script passes these parameters to the manual src/correction.py functions.
-4. Show/save the final corrected image.
-
-```bash
+ - Input: Images from data/INTEL-TAU (or your dataset).
+ - Process: The model predicts parameters $\rightarrow$ src/correction.py applies them $\rightarrow$ Loss calculated against Ground Truth.
+ - Output: Saves the best model to models/hybrid_model.pth.
+ 
+## Phase 2: Inference (Correction)Apply the trained model to correct a specific image.
+```Bash
 python predict.py --model_path models/hybrid_model.pth --input_path data/input/sample1.jpg
 ```
+ - Output: Displays "Original vs Corrected" comparison and saves the result to data/output/.
+
 ---
+# 🛠️ Visual Studio Submission (For Graders)
+
+To comply with the assignment submission requirement ("Submit source codes... in an integrated environment (Visual Studio)"):
+We primarily developed in VS Code for Python compatibility.
+For submission, we have generated a Visual Studio Solution (.sln).
+You can open the .sln file in Visual Studio 2022 (with Python workload installed) to run the project.
