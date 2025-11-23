@@ -60,13 +60,20 @@ def apply_saturation_torch(hsv_tensor: Tensor, sat_adjustment: Tensor) -> Tensor
     s_new = torch.clamp(s * sat_adj_expanded, 0.0, 1.0)
     return torch.cat([h, s_new, v], dim=1)
 
-def apply_hue_torch(hsv_tensor, hue_rotation):
+def apply_hue_torch(hsv_tensor: Tensor, hue_rotation: Tensor) -> Tensor:
     """
-    Adjusts hue.
-    hsv_tensor: (B, 3, H, W) tensor [H, S, V]
-    hue_rotation: (B, 1) tensor (e.g., -0.1 to 0.1, representing -36deg to 36deg)
+    Adjusts hue via cyclic rotation.
+    
+    Args:
+        hsv_tensor: (B, 3, H, W) tensor [H, S, V].
+        hue_rotation: (B, 1) tensor (shift in range [0, 1]).
     """
-
+    h, s, v = hsv_tensor[:, 0:1, :, :], hsv_tensor[:, 1:2, :, :], hsv_tensor[:, 2:3, :, :]
+    hue_rot_expanded = hue_rotation.view(-1, 1, 1, 1)
+    
+    # Cyclic shift within [0, 1]
+    h_new = (h + hue_rot_expanded) % 1.0 
+    return torch.cat([h_new, s, v], dim=1)
 
 # --- Main Correction Pipeline  ---
 
