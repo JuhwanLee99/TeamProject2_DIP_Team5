@@ -1,28 +1,36 @@
-#src/correction.py
+# src/correction.py
 
 import torch
 import torch.nn.functional as F
+from torch import Tensor
 
 # ---
-# Import the new conversion functions
+# Import conversion functions
 # ---
 from src.conversions import rgb_to_hsv_torch, hsv_to_rgb_torch
 
 # ---
-# This file contains the CORE DIP LOGIC.
-# These functions are manually implemented using PyTorch tensor operations
-# so they can be part of the differentiable computation graph for training.
+# CORE DIP LOGIC
+# Implemented using manual PyTorch operations to maintain a 
+# fully differentiable computation graph for training.
 # ---
 
 # --- RGB Space Functions ---
 
-def apply_gamma_torch(img_tensor, gamma):
+def apply_gamma_torch(img_tensor: Tensor, gamma: Tensor) -> Tensor:
     """
-    Applies gamma correction.
-    img_tensor: (B, C, H, W) tensor, values 0-1
-    gamma: (B, 1) tensor of gamma values
+    Applies gamma correction to the input tensor.
+    
+    Args:
+        img_tensor: (B, C, H, W) tensor, values in range [0, 1].
+        gamma: (B, 1) tensor of gamma values.
     """
-
+    gamma_expanded = gamma.view(-1, 1, 1, 1)
+    # Avoid division by zero or instability
+    gamma_expanded = torch.clamp(gamma_expanded, min=1e-6)
+    
+    corrected = torch.pow(img_tensor, 1.0 / gamma_expanded)
+    return torch.clamp(corrected, 0.0, 1.0)
 
 def apply_white_balance_torch(img_tensor, gains):
     """
