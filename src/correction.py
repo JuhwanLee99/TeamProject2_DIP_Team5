@@ -44,15 +44,21 @@ def apply_white_balance_torch(img_tensor: Tensor, gains: Tensor) -> Tensor:
     balanced = img_tensor * gains_expanded
     return torch.clamp(balanced, 0.0, 1.0)
 
-# --- HSV Space Functions  ---
+# --- HSV Space Functions ---
 
-def apply_saturation_torch(hsv_tensor, sat_adjustment):
+def apply_saturation_torch(hsv_tensor: Tensor, sat_adjustment: Tensor) -> Tensor:
     """
-    Adjusts saturation.
-    hsv_tensor: (B, 3, H, W) tensor [H, S, V]
-    sat_adjustment: (B, 1) tensor (e.g., 0.5 to 2.0)
+    Adjusts saturation channel in HSV space.
+    
+    Args:
+        hsv_tensor: (B, 3, H, W) tensor [H, S, V].
+        sat_adjustment: (B, 1) tensor (scaling factor).
     """
- 
+    h, s, v = hsv_tensor[:, 0:1, :, :], hsv_tensor[:, 1:2, :, :], hsv_tensor[:, 2:3, :, :]
+    sat_adj_expanded = sat_adjustment.view(-1, 1, 1, 1)
+    
+    s_new = torch.clamp(s * sat_adj_expanded, 0.0, 1.0)
+    return torch.cat([h, s_new, v], dim=1)
 
 def apply_hue_torch(hsv_tensor, hue_rotation):
     """
