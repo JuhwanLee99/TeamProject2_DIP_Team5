@@ -32,13 +32,17 @@ def apply_gamma_torch(img_tensor: Tensor, gamma: Tensor) -> Tensor:
     corrected = torch.pow(img_tensor, 1.0 / gamma_expanded)
     return torch.clamp(corrected, 0.0, 1.0)
 
-def apply_white_balance_torch(img_tensor, gains):
+def apply_white_balance_torch(img_tensor: Tensor, gains: Tensor) -> Tensor:
     """
     Applies channel-wise gains for white balance.
-    img_tensor: (B, 3, H, W) tensor, values 0-1
-    gains: (B, 3) tensor of R,G,B gains
+    
+    Args:
+        img_tensor: (B, 3, H, W) tensor, values in range [0, 1].
+        gains: (B, 3) tensor of (R, G, B) gains.
     """
-
+    gains_expanded = gains.view(-1, 3, 1, 1)
+    balanced = img_tensor * gains_expanded
+    return torch.clamp(balanced, 0.0, 1.0)
 
 # --- HSV Space Functions  ---
 
