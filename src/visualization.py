@@ -3,6 +3,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+from src.analysis import compute_rgb_histograms
+
 def plot_side_by_side(img1, img2, title1="Original", title2="Corrected"):
     """
     Displays two NumPy images (RGB format) side-by-side.
@@ -24,34 +26,31 @@ def plot_side_by_side(img1, img2, title1="Original", title2="Corrected"):
     plt.tight_layout()
     plt.show(block=True) # Use block=True to ensure window stays open
 
-def plot_histograms(img_rgb, corrected_rgb):
+def plot_histograms(img_rgb, corrected_rgb, bins: int = 256):
     """
     Plots the R, G, B histograms for both original and corrected images side-by-side.
     """
     # Ensure images are within valid display range
-    img_rgb = np.clip(img_rgb, 0, 255)
-    corrected_rgb = np.clip(corrected_rgb, 0, 255)
+    original_hists, bin_edges = compute_rgb_histograms(img_rgb, bins=bins)
+    corrected_hists, _ = compute_rgb_histograms(corrected_rgb, bins=bins)
 
-    colors = ['r', 'g', 'b']
-    bins = np.arange(257)  # 256 bins for 0-255 range
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+    bin_width = np.diff(bin_edges)[0]
+    bin_positions = bin_edges[:-1]
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
+    for channel_idx, color in enumerate(['r', 'g', 'b']):
+        ax1.bar(bin_positions, original_hists[channel_idx], color=color, alpha=0.6, width=bin_width)
+        ax2.bar(bin_positions, corrected_hists[channel_idx], color=color, alpha=0.6, width=bin_width)
 
-    for idx, color in enumerate(colors):
-        hist, bin_edges = np.histogram(img_rgb[..., idx].ravel(), bins=bins, range=(0, 255))
-        ax1.plot(bin_edges[:-1], hist, color=color, label=f"{color.upper()} channel")
-
-        corrected_hist, corrected_edges = np.histogram(corrected_rgb[..., idx].ravel(), bins=bins, range=(0, 255))
-        ax2.plot(corrected_edges[:-1], corrected_hist, color=color, label=f"{color.upper()} channel")
-
-    ax1.set_title("Original Image Histograms")
+    ax1.set_title("Original Histogram")
     ax1.set_xlabel("Pixel Intensity")
     ax1.set_ylabel("Frequency")
-    ax1.legend()
+    ax1.set_xlim(bin_edges[0], bin_edges[-1])
 
-    ax2.set_title("Corrected Image Histograms")
+    ax2.set_title("Corrected Histogram")
     ax2.set_xlabel("Pixel Intensity")
-    ax2.legend()
+    ax2.set_ylabel("Frequency")
+    ax2.set_xlim(bin_edges[0], bin_edges[-1])
 
     plt.tight_layout()
     plt.show(block=True)
