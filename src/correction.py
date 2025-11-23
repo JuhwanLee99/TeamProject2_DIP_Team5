@@ -75,17 +75,40 @@ def apply_hue_torch(hsv_tensor: Tensor, hue_rotation: Tensor) -> Tensor:
     h_new = (h + hue_rot_expanded) % 1.0 
     return torch.cat([h_new, s, v], dim=1)
 
-# --- Main Correction Pipeline  ---
+# --- Main Correction Pipeline ---
 
-def apply_all_corrections_torch(img_tensor, params_tensor):
+def apply_all_corrections_torch(img_tensor: Tensor, params_tensor: Tensor) -> Tensor:
     """
-    Applies all manual corrections based on the model's output parameters.
+    Applies the full correction pipeline based on model predictions.
     
-    img_tensor: (B, 3, H, W) input image tensor (0-1)
-    params_tensor: (B, 6) tensor of predicted parameters from the model
+    Args:
+        img_tensor: (B, 3, H, W) input image tensor (0-1).
+        params_tensor: (B, 6) tensor containing:
+            [gamma, gain_r, gain_g, gain_b, sat, hue]
     """
+    # Unpack parameters
+    gamma = params_tensor[:, 0:1]         # (B, 1)
+    gains = params_tensor[:, 1:4]         # (B, 3)
+    sat = params_tensor[:, 4:5]           # (B, 1)
+    hue = params_tensor[:, 5:6]           # (B, 1)
+
+    # 1. White Balance (Linear space)
+    img = apply_white_balance_torch(img_tensor, gains)
     
-    # --- 1. Map raw model outputs (logits) to meaningful ranges ---
-    # This mapping is crucial and part of the "logic"
+    # 2. Gamma Correction
+    img = apply_gamma_torch(img, gamma)
     
-    # --- 2. Apply Corrections in Logical Order ---
+    # 3. Convert RGB -> HSV
+    hsv = rgb_to_hsv_torch(img)
+    
+    # 4. Adjust Saturation
+    hsv = apply_saturation_torch(hsv, sat)
+    
+    # 5. Adjust Hue
+    hsv = apply_hue_torch(hsv, hue)
+    
+    # 6. Convert HSV -> RGB
+    img_corr = hsv_to_rgb_torch(hsv)
+    
+    # Final safety clamp
+    return torch.clamp(img_corr, 0.0, 1.0)
