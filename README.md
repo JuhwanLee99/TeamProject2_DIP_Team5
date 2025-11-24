@@ -15,10 +15,10 @@ We **manually implemented** the fundamental image processing algorithms using **
     * **Saturation/Hue Adjustment:** Pixel-wise tensor manipulation
 
 ### 2. 🧠 AI as a Supplementary Tool (Automatic Analysis)
-Instead of using a "Black Box" model to generate the image directly, our CNN model acts as a **"Parameter Predictor"**.
-* **Location:** `src/model.py`, `train.py`
-* **Mechanism:** The model analyzes the input image and predicts the *optimal parameters* (e.g., Gamma=1.2, R_Gain=1.05) for the manual functions.
-* **Benefit:** This ensures the final image modification is done purely by our manual code, satisfying the assignment constraints.
+Instead of training a custom CNN, we reuse **MobileNetV2** to classify the scene and pick a preset of correction parameters.
+* **Location:** `src/ai_scene.py, ai_correction_advisor.py`
+* **Mechanism:** The model analyzes the input image to infer a coarse scene label (e.g., Landscape, Portrait) and returns pre-defined parameters that feed into the manual correction pipeline.
+* **Benefit:** This keeps the AI component lightweight while ensuring all pixel-level edits still come from the manual code.
 
 ---
 
@@ -135,19 +135,13 @@ conda activate DIP_Project2
 
 # ▶️ Usage Guide
 
-## Phase 1: Train the ModelTrain the AI to learn how to predict color correction parameters.
+The console helper runs scene classification with MobileNetV2 and then applies the preset corrections to the input image.
+
 ```Bash
-python train.py
+python predict.py --weights_path /path/to/mobilenet_v2-b0353104.pth --input_path data/input/sample1.jpg
 ```
- - Input: Images from data/INTEL-TAU (or your dataset).
- - Process: The model predicts parameters $\rightarrow$ src/correction.py applies them $\rightarrow$ Loss calculated against Ground Truth.
- - Output: Saves the best model to models/hybrid_model.pth.
- 
-## Phase 2: Inference (Correction)Apply the trained model to correct a specific image.
-```Bash
-python predict.py --model_path models/hybrid_model.pth --input_path data/input/sample1.jpg
-```
- - Output: Displays "Original vs Corrected" comparison and saves the result to data/output/.
+- `--weights_path` should point to the locally downloaded MobileNetV2 weights file.
+- Output: Displays "Original vs Corrected" comparison and saves the result to `data/output/`.
 
 ---
 # 🛠️ Visual Studio Submission (For Graders)
