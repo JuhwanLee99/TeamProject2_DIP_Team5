@@ -1,6 +1,8 @@
 # src/ai_scene.py
 
-from typing import Dict, Tuple
+import os
+from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -75,26 +77,70 @@ SCENE_CORRECTIONS: Dict[str, Dict[str, float]] = {
     },
 }
 
+_DEFAULT_WEIGHTS = models.MobileNet_V2_Weights.IMAGENET1K_V1
+_WEIGHT_ENV_VAR = "AI_SCENE_MOBILENET_PATH"
+_WEIGHT_FILENAME = _DEFAULT_WEIGHTS.url.rsplit("/", 1)[-1]
+
 _model: torch.nn.Module | None = None
 _preprocess: transforms.Compose | None = None
 _imagenet_labels: Tuple[str, ...] | None = None
 
 
-def _load_classifier() -> None:
+def _resolve_weights_path(explicit_path: Optional[str]) -> Path:
+    """
+    Resolve a local checkpoint path without triggering network downloads.
+
+    """
+
+    if explicit_path:
+        candidate = Path(explicit_path).expanduser()
+        if not candidate.is_file():
+            raise FileNotFoundError(
+                f"Provided weights_path does not exist: {candidate}"
+            )
+        return candidate
+
+    env_path = os.environ.get(_WEIGHT_ENV_VAR)
+    if env_path:
+        candidate = Path(env_path).expanduser()
+        if not candidate.is_file():
+            raise FileNotFoundError(
+                f"Environment variable {_WEIGHT_ENV_VAR} points to missing weights: {candidate}"
+            )
+        return candidate
+
+    checkpoints_dir = Path(torch.hub._get_torch_home()) / "checkpoints"
+    cached_path = checkpoints_dir / _WEIGHT_FILENAME
+    if cached_path.is_file():
+        return cached_path
+
+    raise RuntimeError(
+        "MobileNetV2 weights not found locally. Provide a checkpoint via "
+        f"`classify_image(..., weights_path=...)` or set ${_WEIGHT_ENV_VAR}. "
+        f"Expected filename: {_WEIGHT_FILENAME}"
+    )
+
+
+def _load_classifier(weights_path: Optional[str] = None) -> None:
     """Lazy-loads the MobileNetV2 classifier and preprocessing pipeline."""
+
     global _model, _preprocess, _imagenet_labels
     if _model is not None:
         return
 
-    weights = models.MobileNet_V2_Weights.IMAGENET1K_V1
-    _model = models.mobilenet_v2(weights=weights)
+    resolved_path = _resolve_weights_path(weights_path)
+    state_dict = torch.load(resolved_path, map_location="cpu")
+
+    _model = models.mobilenet_v2(weights=None)
+    _model.load_state_dict(state_dict)
     _model.eval()
 
-    _preprocess = weights.transforms()
-    _imagenet_labels = tuple(weights.meta["categories"])
+    _preprocess = _DEFAULT_WEIGHTS.transforms()
+    _imagenet_labels = tuple(_DEFAULT_WEIGHTS.meta["categories"])
 
 
 def _map_label_to_scene(predicted_label: str) -> str:
+
     label = predicted_label.lower()
     if any(
         keyword in label
@@ -206,11 +252,11 @@ def _map_label_to_scene(predicted_label: str) -> str:
     return "Generic"
 
 
-def classify_image(img_rgb: np.ndarray) -> Dict[str, object]:
+def classify_image(img_rgb: np.ndarray, weights_path: Optional[str] = None) -> Dict[str, object]:
     """
     Classify an RGB image into a coarse scene label and expose correction hints.
     """
-    _load_classifier()
+    _load_classifier(weights_path)
     assert _model is not None
     assert _preprocess is not None
     assert _imagenet_labels is not None
