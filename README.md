@@ -75,23 +75,20 @@ DIP_Team05_Project/
 ├── environment.yml           # Conda environment dependencies
 ├── requirements.txt          # Pip dependencies (alternative)
 │
-├── train.py                  # [Phase 1] Train the Parameter Prediction Model
-├── predict.py                # [Phase 2] Run inference on new images
+├── app.py                    # for streamlit web demo
+├── predict.py                # for console image edit script
 │
 ├── src/                      # <<< SOURCE CODE MODULES
-│   ├── dataset.py            # Custom Dataset Loader (Input/GroundTruth pairs)
-│   ├── model.py              # CNN Architecture (Predicts 6 correction parameters)
+│   ├── ai_scene.py
 │   ├── correction.py         # <<< CORE: Manual DIP algorithms (Differentiable)
 │   ├── conversions.py        # <<< CORE: Manual RGB<->HSV conversion logic
+│   ├── analysis.py           # for analyze histogram
 │   ├── io_utils.py           # OpenCV I/O wrapper
 │   └── visualization.py      # Matplotlib visualization tools
 │
 ├── data/
-│   ├── INTEL-TAU/            # Training Dataset (External)
 │   ├── input/                # Test images
 │   └── output/               # Result images
-│
-└── models/                   # Saved model checkpoints (.pth)
 ```
 
 --- 
