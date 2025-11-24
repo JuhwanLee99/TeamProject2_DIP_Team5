@@ -25,6 +25,12 @@ if [ -z "$VIRTUAL_ENV" ]; then
     source venv/bin/activate
 fi
 
+# Use venv Python explicitly
+PYTHON_BIN="$PROJECT_ROOT/venv/bin/python3"
+if [ ! -f "$PYTHON_BIN" ]; then
+    PYTHON_BIN="python3"
+fi
+
 FIVEK_DIR="data/training_datasets/FiveK"
 if [ ! -d "$FIVEK_DIR" ]; then
     echo -e "${RED}Error: FiveK dataset not found at $FIVEK_DIR${NC}"
@@ -32,15 +38,15 @@ if [ ! -d "$FIVEK_DIR" ]; then
     exit 1
 fi
 
-if ! ls "$FIVEK_DIR"/input* &> /dev/null && ! ls "$FIVEK_DIR"/source* &> /dev/null; then
+if ! ls "$FIVEK_DIR"/raw &> /dev/null && ! ls "$FIVEK_DIR"/input* &> /dev/null && ! ls "$FIVEK_DIR"/source* &> /dev/null; then
     echo -e "${RED}Error: Input directory not found in $FIVEK_DIR${NC}"
-    echo "Expected structure: $FIVEK_DIR/input/ (or source/)"
+    echo "Expected structure: $FIVEK_DIR/raw/ (or input/ or source/)"
     exit 1
 fi
 
-if ! ls "$FIVEK_DIR"/expertC* &> /dev/null && ! ls "$FIVEK_DIR"/target* &> /dev/null; then
+if ! ls "$FIVEK_DIR"/c &> /dev/null && ! ls "$FIVEK_DIR"/expertC* &> /dev/null && ! ls "$FIVEK_DIR"/target* &> /dev/null; then
     echo -e "${RED}Error: Expert directory not found in $FIVEK_DIR${NC}"
-    echo "Expected structure: $FIVEK_DIR/expertC/ (or target/)"
+    echo "Expected structure: $FIVEK_DIR/c/ (or expertC/ or target/)"
     exit 1
 fi
 
@@ -48,17 +54,17 @@ mkdir -p models
 
 echo -e "${YELLOW}Checking CUDA availability...${NC}"
 DEVICE="cuda"
-if ! python3 -c "import torch; assert torch.cuda.is_available()" 2>/dev/null; then
+if ! "$PYTHON_BIN" -c "import torch; assert torch.cuda.is_available()" 2>/dev/null; then
     echo -e "${YELLOW}Warning: CUDA not available, using CPU${NC}"
     DEVICE="cpu"
 else
-    GPU_NAME=$(python3 -c "import torch; print(torch.cuda.get_device_name(0))" 2>/dev/null)
+    GPU_NAME=$("$PYTHON_BIN" -c "import torch; print(torch.cuda.get_device_name(0))" 2>/dev/null)
     echo -e "${GREEN}✓ GPU detected: $GPU_NAME${NC}"
 fi
 
 BATCH_SIZE=128
 EPOCHS=30
-LR=0.001
+LR=0.0001
 NUM_WORKERS=8
 OUTPUT="models/diagnostic_model.pth"
 
@@ -85,7 +91,7 @@ echo -e "${GREEN}Starting training...${NC}"
 echo "=========================================="
 echo ""
 
-python3 src/training/train_diagnostic_model.py \
+"$PYTHON_BIN" src/training/train_diagnostic_model.py \
     --data "$FIVEK_DIR" \
     --batch-size "$BATCH_SIZE" \
     --epochs "$EPOCHS" \

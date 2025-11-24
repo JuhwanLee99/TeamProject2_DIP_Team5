@@ -263,7 +263,16 @@ def load_diagnostic_model(
     
     print(f"Loading diagnostic model from {model_path}...")
     model = DiagnosticCNN(pretrained=False)
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    
+    # Load checkpoint
+    checkpoint = torch.load(model_path, map_location=device)
+    
+    # Handle both checkpoint dict and direct state_dict
+    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        model.load_state_dict(checkpoint)
+    
     model.to(device)
     model.eval()
     

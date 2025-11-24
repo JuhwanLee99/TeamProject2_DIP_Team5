@@ -199,6 +199,7 @@ class FiveKDataset(Dataset):
     def _find_input_dir(self) -> Path:
         """Find input images directory."""
         candidates = [
+            self.data_dir / 'raw',
             self.data_dir / 'input',
             self.data_dir / 'source',
             self.data_dir / 'original',
@@ -211,6 +212,7 @@ class FiveKDataset(Dataset):
     def _find_expert_dir(self) -> Path:
         """Find expert retouched images directory."""
         candidates = [
+            self.data_dir / 'c',
             self.data_dir / 'expertC',
             self.data_dir / 'expert_c',
             self.data_dir / 'target',
@@ -248,20 +250,16 @@ class FiveKDataset(Dataset):
         transform_list = []
         
         if self.augment:
-            # Training augmentations
+            # Training augmentations (images are already resized to target size)
             transform_list.extend([
                 transforms.RandomHorizontalFlip(p=0.5),
-                transforms.RandomResizedCrop(self.image_size, scale=(0.8, 1.0)),
+                transforms.RandomCrop(self.image_size),  # Just crop, no resize needed
                 transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.05),
             ])
-        else:
-            # Validation: just resize
-            transform_list.append(transforms.Resize((self.image_size, self.image_size)))
+        # Validation: no transforms needed, already resized
         
-        # Convert to tensor and normalize
-        transform_list.extend([
-            transforms.ToTensor(),
-        ])
+        # Convert to tensor
+        transform_list.append(transforms.ToTensor())
         
         return transforms.Compose(transform_list)
     
@@ -287,11 +285,17 @@ class FiveKDataset(Dataset):
         input_img = Image.open(input_path).convert('RGB')
         expert_img = Image.open(expert_path).convert('RGB')
         
-        # Convert to numpy for analysis
-        input_np = np.array(input_img).astype(np.float32) / 255.0
-        expert_np = np.array(expert_img).astype(np.float32) / 255.0
+        # OPTIMIZATION: Resize to target size BEFORE computing ground truth
+        # This is 10-20x faster than computing on full resolution images
+        target_size = (self.image_size, self.image_size)
+        input_img_small = input_img.resize(target_size, Image.LANCZOS)
+        expert_img_small = expert_img.resize(target_size, Image.LANCZOS)
         
-        # Compute ground truth correction parameters
+        # Convert to numpy for ground truth computation (on small images)
+        input_np = np.array(input_img_small).astype(np.float32) / 255.0
+        expert_np = np.array(expert_img_small).astype(np.float32) / 255.0
+        
+        # Compute ground truth correction parameters (fast on 224x224)
         gamma = compute_gamma_correction(input_np, expert_np)
         gain_r, gain_g, gain_b = compute_white_balance_gains(input_np, expert_np)
         sat_adj = compute_saturation_adjustment(input_np, expert_np)
@@ -303,8 +307,8 @@ class FiveKDataset(Dataset):
         # Compute current saturation level (0 to 1)
         current_sat = float(np.std(input_np, axis=2).mean())
         
-        # Apply transforms to input image only
-        input_tensor = self.transform(input_img)
+        # Apply transforms (already resized, so this just does augmentations if training)
+        input_tensor = self.transform(input_img_small)
         
         # Prepare labels
         exposure_label = torch.tensor([exp_under, exp_well, exp_over], dtype=torch.float32)

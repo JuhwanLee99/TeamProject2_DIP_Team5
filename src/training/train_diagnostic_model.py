@@ -7,9 +7,15 @@ Trains model to predict exposure, white balance, and saturation corrections
 from expert-retouched image pairs.
 """
 
+import sys
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
 import argparse
 import time
-from pathlib import Path
 from typing import Dict
 
 import torch
@@ -209,8 +215,8 @@ def main():
                         help='Batch size for training (default: 128)')
     parser.add_argument('--epochs', type=int, default=30,
                         help='Number of training epochs (default: 30)')
-    parser.add_argument('--lr', type=float, default=1e-3,
-                        help='Learning rate (default: 0.001)')
+    parser.add_argument('--lr', type=float, default=1e-4,
+                        help='Learning rate (default: 0.0001)')
     parser.add_argument('--num-workers', type=int, default=8,
                         help='Number of data loading workers (default: 8)')
     parser.add_argument('--device', type=str, default='cuda',
@@ -247,15 +253,24 @@ def main():
     
     # Optimizer and scheduler
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=3, verbose=True
+    
+    # LR warmup: gradually increase learning rate for first few epochs
+    warmup_epochs = 3
+    warmup_scheduler = optim.lr_scheduler.LinearLR(
+        optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs
+    )
+    
+    # Main scheduler: reduce on plateau after warmup
+    main_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='min', factor=0.5, patience=3
     )
     
     # Training loop
     print(f"\nStarting training for {args.epochs} epochs...")
+    print(f"LR warmup: {warmup_epochs} epochs (start={args.lr*0.1:.6f} -> end={args.lr:.6f})")
     best_val_loss = float('inf')
     patience_counter = 0
-    patience = 5
+    patience = 10
     
     for epoch in range(args.epochs):
         print(f"\n{'='*60}")
@@ -277,7 +292,16 @@ def main():
               f"sat_mse={val_results['sat_mse']:.4f}")
         
         # Learning rate scheduling
-        scheduler.step(val_results['total'])
+        if epoch < warmup_epochs:
+            # Warmup phase: gradually increase LR
+            warmup_scheduler.step()
+            current_lr = optimizer.param_groups[0]['lr']
+            print(f"Warmup: LR = {current_lr:.6f}")
+        else:
+            # After warmup: reduce on plateau
+            main_scheduler.step(val_results['total'])
+            current_lr = optimizer.param_groups[0]['lr']
+            print(f"LR = {current_lr:.6f}")
         
         # Save best model
         if val_results['total'] < best_val_loss:
