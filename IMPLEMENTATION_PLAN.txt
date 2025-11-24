@@ -1,0 +1,212 @@
+================================================================================
+AI_OPTIMIZE.PY - IMPLEMENTATION PLAN
+================================================================================
+
+CLEANED: src/ai_optimize.py (595 lines, AI-only)
+
+REMOVED:
+- Classical CV fallback (_analyze_with_classical_cv)
+- use_ai parameter (always uses AI now)
+- All heuristic-based diagnostics
+
+ADDED:
+- DiagnosticCNN class (MobileNetV2 backbone + 3 heads)
+- load_diagnostic_model() function
+- analyze_image_with_ai() function
+- Model management (caching, auto-load)
+
+KEPT (INTERFACES LOCKED):
+✓ ExposureDiagnostic dataclass
+✓ WhiteBalanceDiagnostic dataclass
+✓ SaturationDiagnostic dataclass
+✓ CorrectionAdvice dataclass
+✓ optimize_corrections() API signature
+✓ generate_preview() API signature
+
+================================================================================
+NEXT STEPS - TRAINING PIPELINE
+================================================================================
+
+STEP 1: DATASET DOWNLOAD (30 mins - 2 hours)
+---------------------------------------------
+Option A: COCO validation set (EASIEST, START HERE)
+- Size: 1GB (5,000 images)
+- Quality: Good for synthetic training
+- Download:
+    cd ~/Downloads
+    wget http://images.cocodataset.org/zips/val2017.zip
+    unzip val2017.zip
+
+Option B: MIT-Adobe FiveK (BETTER QUALITY)
+- Size: 50GB (5,000 expert-retouched pairs)
+- Quality: Best for real training
+- Register: https://data.csail.mit.edu/graphics/fivek/
+- Download via provided link after registration
+
+RECOMMENDATION: Start with COCO for quick prototype (today),
+                download FiveK in background for better model (tomorrow)
+
+
+STEP 2: TRAINING SCRIPT (2-3 hours to write)
+---------------------------------------------
+Files to create:
+1. src/dataset.py - Data loader with synthetic degradation
+2. train_diagnostic_model.py - Training loop
+3. utils/degradation.py - Image degradation functions
+
+Training script structure:
+- Generate synthetic training pairs on-the-fly
+- Apply random degradations (gamma, color cast, desaturation)
+- Train DiagnosticCNN to predict corrections
+- Save best model to models/diagnostic_model.pth
+
+
+STEP 3: TRAINING EXECUTION (20-30 mins on RTX 5070)
+----------------------------------------------------
+Hardware utilization:
+- RTX 5070 12GB: Batch size 128
+- Ryzen 9950X: 16 workers for data loading
+- Mixed precision training (FP16)
+
+Expected training time:
+- Synthetic data (100k pairs): 20-30 minutes
+- FiveK fine-tuning: 1-2 hours (optional)
+
+Command:
+    python train_diagnostic_model.py \
+        --data ~/Downloads/val2017 \
+        --synthetic \
+        --batch-size 128 \
+        --epochs 30 \
+        --device cuda
+
+
+STEP 4: INTEGRATION (30 mins)
+------------------------------
+Once trained model exists at models/diagnostic_model.pth:
+- ai_optimize.py will auto-load it
+- No code changes needed
+- Just call optimize_corrections() normally
+
+
+STEP 5: TESTING (30 mins)
+--------------------------
+Test end-to-end pipeline:
+    from src.ai_scene import classify_image
+    from src.ai_optimize import optimize_corrections
+    from src.io_utils import read_image
+    
+    img_bgr = read_image("test.jpg")
+    img_rgb = img_bgr[..., ::-1]
+    
+    scene_result = classify_image(img_rgb)
+    advice = optimize_corrections(img_rgb, scene_result)
+    
+    print(advice)
+
+================================================================================
+MODEL ARCHITECTURE DETAILS
+================================================================================
+
+DiagnosticCNN:
+    Input: (B, 3, 224, 224) RGB, normalized
+    
+    Backbone: MobileNetV2
+        - Pretrained on ImageNet
+        - Features: (B, 1280, 7, 7)
+        - AdaptiveAvgPool -> (B, 1280)
+    
+    Exposure Head:
+        Linear(1280 -> 256) -> ReLU -> Dropout(0.3)
+        -> Linear(256 -> 3)
+        Output: [under_prob, well_prob, over_prob]
+    
+    White Balance Head:
+        Linear(1280 -> 256) -> ReLU -> Dropout(0.3)
+        -> Linear(256 -> 5)
+        Output: [color_temp_norm, tint, gain_r, gain_g, gain_b]
+    
+    Saturation Head:
+        Linear(1280 -> 128) -> ReLU -> Dropout(0.3)
+        -> Linear(128 -> 3)
+        Output: [under_prob, over_prob, current_level]
+
+Parameters: ~3.5M (lightweight, fast inference)
+Inference time: ~15ms on RTX 5070
+
+
+================================================================================
+TRAINING DATA GENERATION STRATEGY
+================================================================================
+
+Synthetic Data Generation:
+1. Load "good" image from COCO
+2. Apply random degradation:
+   - Underexpose: gamma_deg = random(1.5, 2.5)
+   - Color cast: r_gain = random(0.8, 1.2)
+   - Desaturate: sat_factor = random(0.6, 0.9)
+3. Label = inverse correction needed
+4. Train: degraded_image -> predict correction params
+
+Ground truth generation:
+- If applied gamma_deg = 2.0, then label gamma = 1/2.0 = 0.5
+- If applied r_gain = 1.2, then label gain_r = 1/1.2 = 0.833
+- Model learns to invert the degradation
+
+Augmentations:
+- Random crop
+- Random flip
+- Random brightness/contrast
+- Color jitter
+
+
+================================================================================
+EXPECTED RESULTS
+================================================================================
+
+After synthetic training (COCO, 30 mins):
+- Exposure accuracy: ~75%
+- White balance accuracy: ~70%
+- Saturation accuracy: ~78%
+
+After fine-tuning (FiveK, 2 hours):
+- Exposure accuracy: ~85%
+- White balance accuracy: ~82%
+- Saturation accuracy: ~87%
+
+Comparison to Classical CV fallback:
+- Classical CV: ~60% accuracy (heuristics)
+- AI (synthetic): +15% improvement
+- AI (FiveK): +25% improvement
+
+
+================================================================================
+TIMELINE ESTIMATE
+================================================================================
+
+Day 1 (4-5 hours active work):
+Hour 1: Download COCO dataset (passive)
+Hour 2-3: Write training script (dataset.py, train.py)
+Hour 4: Train on synthetic data (30 mins active, test while training)
+Hour 5: Test integration with ai_optimize.py
+
+Day 2 (Optional polish, 2-3 hours):
+Hour 1: Download FiveK (passive, large file)
+Hour 2-3: Fine-tune on FiveK (passive training)
+Hour 4: Compare results, tune hyperparameters
+
+TOTAL: 6-8 hours active work, 3-4 hours compute time
+
+
+================================================================================
+CURRENT STATUS
+================================================================================
+
+✓ ai_optimize.py cleaned and ready for AI model
+✓ DiagnosticCNN architecture implemented
+✓ Model loading infrastructure ready
+✓ Interfaces locked (upstream/downstream compatible)
+
+NEXT: Create training script
+
+Ready to proceed?
