@@ -52,12 +52,10 @@ data/output/
 !data/output/.gitkeep
 
 # 3. Ignore ALL large dataset files
-# We track the 'data/' folder structure, but not the images.
-data/INTEL-TAU/
-data/Cube++/
-# Add other dataset folders here
+data/training_datasets/FiveK/
 
 # 4. Ignore ALL log files
 logs/
 *.log
 *.csv
+
