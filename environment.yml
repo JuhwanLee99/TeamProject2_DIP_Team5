@@ -24,3 +24,4 @@ dependencies:
   - matplotlib      # For visualization.py
   - scikit-image    # For metrics (optional)
   - tqdm            # For progress bars
+  - pillow          # For PIL-based image loading in ai_scene.py
