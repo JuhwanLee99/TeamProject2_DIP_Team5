@@ -1,40 +1,30 @@
 #!/bin/bash
-
-# train.sh - Training script for DiagnosticCNN model
-# Trains on FiveK dataset with optimal settings for RTX 5070
-
 set -e
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
+NC='\033[0m' 
 echo "=========================================="
 echo "DiagnosticCNN Training Script"
 echo "=========================================="
 echo ""
 
-# Get project root directory (two levels up from script location)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
 cd "$PROJECT_ROOT"
 
-# Check if venv exists and is activated
 if [ ! -d "venv" ]; then
     echo -e "${RED}Error: Virtual environment not found${NC}"
     echo "Please create venv first: python3 -m venv venv"
     exit 1
 fi
 
-# Activate venv if not already activated
 if [ -z "$VIRTUAL_ENV" ]; then
     echo -e "${YELLOW}Activating virtual environment...${NC}"
     source venv/bin/activate
 fi
 
-# Check if FiveK dataset exists
 FIVEK_DIR="data/training_datasets/FiveK"
 if [ ! -d "$FIVEK_DIR" ]; then
     echo -e "${RED}Error: FiveK dataset not found at $FIVEK_DIR${NC}"
@@ -42,7 +32,6 @@ if [ ! -d "$FIVEK_DIR" ]; then
     exit 1
 fi
 
-# Check if dataset has input and expert directories
 if ! ls "$FIVEK_DIR"/input* &> /dev/null && ! ls "$FIVEK_DIR"/source* &> /dev/null; then
     echo -e "${RED}Error: Input directory not found in $FIVEK_DIR${NC}"
     echo "Expected structure: $FIVEK_DIR/input/ (or source/)"
@@ -55,10 +44,8 @@ if ! ls "$FIVEK_DIR"/expertC* &> /dev/null && ! ls "$FIVEK_DIR"/target* &> /dev/
     exit 1
 fi
 
-# Create models directory if it doesn't exist
 mkdir -p models
 
-# Check CUDA availability
 echo -e "${YELLOW}Checking CUDA availability...${NC}"
 DEVICE="cuda"
 if ! python3 -c "import torch; assert torch.cuda.is_available()" 2>/dev/null; then
@@ -69,7 +56,6 @@ else
     echo -e "${GREEN}✓ GPU detected: $GPU_NAME${NC}"
 fi
 
-# Training parameters
 BATCH_SIZE=128
 EPOCHS=30
 LR=0.001
@@ -87,7 +73,6 @@ echo "  Device:      $DEVICE"
 echo "  Output:      $OUTPUT"
 echo ""
 
-# Prompt user to continue
 read -p "Start training? [Y/n] " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]] && [[ ! -z $REPLY ]]; then
@@ -100,7 +85,6 @@ echo -e "${GREEN}Starting training...${NC}"
 echo "=========================================="
 echo ""
 
-# Run training
 python3 src/training/train_diagnostic_model.py \
     --data "$FIVEK_DIR" \
     --batch-size "$BATCH_SIZE" \
@@ -110,7 +94,6 @@ python3 src/training/train_diagnostic_model.py \
     --device "$DEVICE" \
     --output "$OUTPUT"
 
-# Check if training succeeded
 if [ $? -eq 0 ]; then
     echo ""
     echo "=========================================="
