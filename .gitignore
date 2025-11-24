@@ -42,7 +42,7 @@ x64/
 
 # 1. Ignore ALL trained models (large binary files)
 # We track the 'models/' folder, but not its contents.
-models/*
+# models/*
 # Add an exception for a placeholder file, if you have one
 !models/.gitkeep
 
