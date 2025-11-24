@@ -137,10 +137,36 @@ conda activate DIP_Project2
 
 The console helper runs scene classification with MobileNetV2 and then applies the preset corrections to the input image.
 
-```Bash
-python predict.py --weights_path /path/to/mobilenet_v2-b0353104.pth --input_path data/input/sample1.jpg
+### 5. Download MobileNetV2 weights (once per machine)
+
+The scene classifier loads a plain PyTorch checkpoint (no training step required). Run the following helper to download the
+ImageNet-pretrained weights and store them under `weights/`:
+
+```bash
+# Create a directory to keep model weights
+mkdir -p weights
+
+# Download the ImageNet-pretrained MobileNetV2 checkpoint (~14 MB)
+python - <<'PY'
+from pathlib import Path
+
+import torch
+from torchvision.models import MobileNet_V2_Weights, mobilenet_v2
+
+weights_path = Path("weights/mobilenet_v2-b0353104.pth")
+model = mobilenet_v2(weights=MobileNet_V2_Weights.IMAGENET1K_V1)
+torch.save(model.state_dict(), weights_path)
+print(f"Saved weights to {weights_path.resolve()}")
+PY
 ```
-- `--weights_path` should point to the locally downloaded MobileNetV2 weights file.
+
+### 6. Run the console helper
+
+```Bash
+python predict.py --weights_path weights/mobilenet_v2-b0353104.pth --input_path data/input/sample1.jpg
+```
+
+- `--weights_path` should point to the MobileNetV2 `.pth` file you just saved.
 - Output: Displays "Original vs Corrected" comparison and saves the result to `data/output/`.
 
 ---
