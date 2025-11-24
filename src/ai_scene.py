@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
 import numpy as np
 import torch
@@ -10,6 +10,7 @@ from PIL import Image
 from torchvision import models, transforms
 
 # Preset correction parameters keyed by scene label.
+# Scene-driven defaults that assume the photo is reasonably exposed.
 SCENE_CORRECTIONS: Dict[str, Dict[str, float]] = {
     "Landscape": {
         "gamma": 1.05,
@@ -77,19 +78,24 @@ SCENE_CORRECTIONS: Dict[str, Dict[str, float]] = {
     },
 }
 
+
 _DEFAULT_WEIGHTS = models.MobileNet_V2_Weights.IMAGENET1K_V1
 _WEIGHT_ENV_VAR = "AI_SCENE_MOBILENET_PATH"
 _WEIGHT_FILENAME = _DEFAULT_WEIGHTS.url.rsplit("/", 1)[-1]
 
 _model: torch.nn.Module | None = None
 _preprocess: transforms.Compose | None = None
-_imagenet_labels: Tuple[str, ...] | None = None
+_imagenet_labels: tuple[str, ...] | None = None
 
 
 def _resolve_weights_path(explicit_path: Optional[str]) -> Path:
     """
     Resolve a local checkpoint path without triggering network downloads.
 
+    The resolver checks in the following order:
+    1. An explicit path passed to ``classify_image``.
+    2. The ``AI_SCENE_MOBILENET_PATH`` environment variable.
+    3. The default Torch hub checkpoints directory for the expected filename.
     """
 
     if explicit_path:
@@ -271,11 +277,11 @@ def classify_image(img_rgb: np.ndarray, weights_path: Optional[str] = None) -> D
 
     imagenet_label = _imagenet_labels[int(idx.item())]
     scene_label = _map_label_to_scene(imagenet_label)
-    corrections = SCENE_CORRECTIONS.get(scene_label, SCENE_CORRECTIONS["Generic"])
+    scene_corrections = SCENE_CORRECTIONS.get(scene_label, SCENE_CORRECTIONS["Generic"])
 
     return {
         "scene": scene_label,
         "score": float(score.item()),
         "raw_label": imagenet_label,
-        "corrections": corrections,
+        "scene_corrections": scene_corrections,
     }

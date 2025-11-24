@@ -79,7 +79,8 @@ DIP_Team05_Project/
 ├── predict.py                # for console image edit script
 │
 ├── src/                      # <<< SOURCE CODE MODULES
-│   ├── ai_scene.py
+│   ├── ai_scene.py           # CORE: Scene classification & static presets provided (MobileNetV2)
+│   ├── ai_correction_advisor.py #  Calculate diagnostic and final calibration values (Advisor)
 │   ├── correction.py         # <<< CORE: Manual DIP algorithms (Differentiable)
 │   ├── conversions.py        # <<< CORE: Manual RGB<->HSV conversion logic
 │   ├── analysis.py           # for analyze histogram
