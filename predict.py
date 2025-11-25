@@ -8,6 +8,11 @@ import torch
 from torchvision import transforms
 
 from src.ai_scene import classify_image
+from src.ai_optimize import (
+    generate_preview,
+    load_diagnostic_model,
+    optimize_corrections,
+)
 from src.correction import apply_all_corrections_torch
 from src.io_utils import read_image, save_image
 from src.visualization import plot_side_by_side
@@ -37,7 +42,39 @@ def postprocess(image_tensor: torch.Tensor) -> np.ndarray:
     return image_np
 
 
-def predict(weights_path: str | Path, input_path: str | Path) -> None:
+def _apply_params(img_rgb: np.ndarray, params: dict, device: torch.device) -> np.ndarray:
+    """
+    Convenience helper to run the manual correction pipeline for an arbitrary
+    parameter dictionary.
+    """
+    input_tensor = preprocess(img_rgb, device)
+
+    params_tensor = torch.tensor(
+        [
+            [
+                params["gamma"],
+                params["gain_r"],
+                params["gain_g"],
+                params["gain_b"],
+                params["sat"],
+                params["hue"],
+            ]
+        ],
+        dtype=torch.float32,
+        device=device,
+    )
+
+    corrected_tensor = apply_all_corrections_torch(input_tensor, params_tensor)
+    return postprocess(corrected_tensor[0])
+
+
+def predict(
+    weights_path: str | Path,
+    input_path: str | Path,
+    fusion_weight: float = 0.6,
+    diagnostic_model_path: str | Path | None = None,
+    save_presets: bool = True,
+) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -50,45 +87,53 @@ def predict(weights_path: str | Path, input_path: str | Path) -> None:
 
     print("Classifying scene with MobileNetV2...")
     scene_info = classify_image(img_rgb, weights_path=weights_path)
-    scene_params = scene_info["scene_corrections"]
     print(
         "Predicted scene: {scene} (confidence: {score:.3f}, raw label: {raw})".format(
             scene=scene_info["scene"], score=scene_info["score"], raw=scene_info["raw_label"]
         )
     )
 
-    params_tensor = torch.tensor(
-        [
-            [
-                scene_params["gamma"],
-                scene_params["white_balance_r"],
-                scene_params["white_balance_g"],
-                scene_params["white_balance_b"],
-                scene_params["saturation"],
-                scene_params["hue_shift"],
-            ]
-        ],
-        dtype=torch.float32,
+    diagnostic_model = None
+    if diagnostic_model_path is not None:
+        diagnostic_model = load_diagnostic_model(Path(diagnostic_model_path), device=device)
+
+    print("Running AI diagnostic optimizer (exposure, white balance, saturation)...")
+    advice = optimize_corrections(
+        img_rgb,
+        scene_info,
+        diagnostic_model=diagnostic_model,
         device=device,
+        fusion_weight=fusion_weight,
     )
 
-    input_tensor = preprocess(img_rgb, device)
+    print("\n" + str(advice) + "\n")
 
-    print("Applying manual correction functions...")
-    corrected_tensor = apply_all_corrections_torch(input_tensor, params_tensor)
-
-    corrected_image_np = postprocess(corrected_tensor[0])
+    print("Generating corrected preview with fused parameters...")
+    corrected_image_np = generate_preview(img_rgb, advice, device=device)
 
     print("Displaying results...")
-    plot_side_by_side(img_rgb, corrected_image_np, "Original", "Corrected (Preset)")
+    plot_side_by_side(img_rgb, corrected_image_np, "Original", "Corrected (AI + Preset)")
 
     output_path = Path("data/output/scene_corrected.jpg")
     save_image(output_path, corrected_image_np[..., ::-1])  # Convert back to BGR
     print(f"Corrected image saved to {output_path}")
 
+    if save_presets and advice.recommended_filters:
+        print("Saving additional recommended filter presets...")
+        presets_dir = Path("data/output/presets")
+        presets_dir.mkdir(parents=True, exist_ok=True)
+
+        for preset in advice.recommended_filters:
+            preset_img = _apply_params(img_rgb, preset["params"], device)
+            preset_path = presets_dir / f"{preset['name'].lower()}_preview.jpg"
+            save_image(preset_path, preset_img[..., ::-1])
+            print(f" - {preset['name']} saved to {preset_path}")
+
+    print("Done.")
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run scene-based color correction.")
+    parser = argparse.ArgumentParser(description="Run scene-based color correction with AI optimization.")
     parser.add_argument(
         "--weights_path",
         type=str,
@@ -96,6 +141,29 @@ if __name__ == "__main__":
         help="Path to the MobileNetV2 weights (.pth) for scene classification.",
     )
     parser.add_argument("--input_path", type=str, required=True, help="Path to the input image.")
+    parser.add_argument(
+        "--fusion_weight",
+        type=float,
+        default=0.6,
+        help="Blend ratio between AI diagnostics and scene preset (1.0 = AI only, 0.0 = preset only).",
+    )
+    parser.add_argument(
+        "--diagnostic_model_path",
+        type=str,
+        default=None,
+        help="Optional path to the diagnostic CNN weights (.pth). Uses bundled model if omitted.",
+    )
+    parser.add_argument(
+        "--disable_presets",
+        action="store_true",
+        help="Skip saving the recommended filter preset previews.",
+    )
     args = parser.parse_args()
 
-    predict(args.weights_path, args.input_path)
+    predict(
+        args.weights_path,
+        args.input_path,
+        fusion_weight=args.fusion_weight,
+        diagnostic_model_path=args.diagnostic_model_path,
+        save_presets=not args.disable_presets,
+    )
