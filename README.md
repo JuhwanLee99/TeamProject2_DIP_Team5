@@ -179,6 +179,19 @@ python predict.py \
   gallery (fused result + any recommended presets). The selected filter is what gets displayed. A copy of the fused correction
   is written to `data/output/scene_corrected.jpg`, and recommended filter previews (Natural/Vivid/Muted) are saved under
   `data/output/presets/`.
+  The script also verifies that the same parameters drive both the preview and manual correction pipeline and reports the
+  observed pixel-level change, ensuring the saved image reflects the intended adjustments.
+
+**How `--fusion_weight` affects the result**
+
+- Higher values (closer to **1.0**) lean more on the AI diagnostic model, so exposure/white balance/saturation shifts follow
+  what the diagnostic network recommends for the specific photo. Use this when the scene preset looks off (e.g., misclassified
+  scene) or you want more adaptive corrections.
+- Lower values (closer to **0.0**) trust the scene preset more, so the output follows the typical look for that scene category
+  and reduces the influence of the diagnostic network. Use this when the preset already matches the scene style and you want a
+  more conservative change.
+- The default **0.6** is a balanced mix: it keeps the preset’s intended look while still letting the diagnostic model nudge the
+  parameters toward the measured exposure/white balance/saturation needs of the input image.
 
 ---
 # 🛠️ Visual Studio Submission (For Graders)
