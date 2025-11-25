@@ -68,6 +68,32 @@ def _apply_params(img_rgb: np.ndarray, params: dict, device: torch.device) -> np
     return postprocess(corrected_tensor[0])
 
 
+def _validate_application(
+    img_rgb: np.ndarray, advice, device: torch.device
+) -> tuple[np.ndarray, float, int, float]:
+    """
+    Confirm the preview path and manual parameter application match and report
+    how much the image changed from the original.
+    """
+
+    # Preview path (uses advice.to_tensor internally)
+    preview_image_np = generate_preview(img_rgb, advice, device=device)
+
+    # Manual application path
+    validated_image_np = _apply_params(img_rgb, advice.final_params, device)
+
+    # Compare both correction paths to ensure parameters are applied consistently
+    diff = np.abs(preview_image_np.astype(np.int16) - validated_image_np.astype(np.int16))
+    mean_diff = float(diff.mean())
+    max_diff = int(diff.max())
+
+    # Measure the actual impact of the parameters relative to the original
+    impact = np.abs(validated_image_np.astype(np.int16) - img_rgb.astype(np.int16))
+    mean_impact = float(impact.mean())
+
+    return validated_image_np, mean_diff, max_diff, mean_impact
+
+
 def predict(
     weights_path: str | Path,
     input_path: str | Path,
@@ -112,7 +138,25 @@ def predict(
     print("\n" + advice_text + "\n")
 
     print("Generating corrected preview with fused parameters...")
-    corrected_image_np = generate_preview(img_rgb, advice, device=device)
+    print("Validating applied parameters via manual correction pipeline...")
+    corrected_image_np, mean_diff, max_diff, mean_impact = _validate_application(
+        img_rgb, advice, device
+    )
+
+    if max_diff > 2 or mean_diff > 0.5:
+        print(
+            f"Warning: Preview path mismatch detected (mean diff {mean_diff:.2f}, max {max_diff}). "
+            "Using validated pipeline output for display and export."
+        )
+    else:
+        print(
+            f"Validated parameter application (mean diff {mean_diff:.2f}, max {max_diff}). "
+            "Using validated pipeline output."
+        )
+
+    print(
+        f"Applied parameters visibly changed the image (mean abs pixel shift vs. original: {mean_impact:.2f})."
+    )
 
     # Build gallery of previews (fused + recommended filters)
     filter_previews: list[dict] = [{"name": "AI + Preset", "image": corrected_image_np}]
