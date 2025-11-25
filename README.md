@@ -15,10 +15,12 @@ We **manually implemented** the fundamental image processing algorithms using **
     * **Saturation/Hue Adjustment:** Pixel-wise tensor manipulation
 
 ### 2. 🧠 AI as a Supplementary Tool (Automatic Analysis)
-Instead of training a custom CNN, we reuse **MobileNetV2** to classify the scene and pick a preset of correction parameters.
-* **Location:** `src/ai_scene.py, ai_correction_advisor.py`
-* **Mechanism:** The model analyzes the input image to infer a coarse scene label (e.g., Landscape, Portrait) and returns pre-defined parameters that feed into the manual correction pipeline.
-* **Benefit:** This keeps the AI component lightweight while ensuring all pixel-level edits still come from the manual code.
+We reuse **MobileNetV2** to classify the scene, then fuse its preset with an AI diagnostic optimizer that estimates exposure, white balance, and saturation tweaks.
+* **Location:** `src/ai_scene.py`, `src/ai_optimize.py`
+* **Mechanism:**
+    * **Scene Classification:** MobileNetV2 predicts a coarse scene label (e.g., Landscape, Portrait) and preset correction parameters.
+    * **AI Diagnostics:** `ai_optimize.optimize_corrections` loads a lightweight CNN (`models/diagnostic_model.pth`) that analyzes exposure, white balance, and saturation, then blends the result with the scene preset.
+* **Benefit:** Lightweight AI determines _how much_ to adjust while the manual pipeline still applies every pixel-level edit.
 
 ---
 
@@ -80,7 +82,7 @@ DIP_Team05_Project/
 │
 ├── src/                      # <<< SOURCE CODE MODULES
 │   ├── ai_scene.py           # CORE: Scene classification & static presets provided (MobileNetV2)
-│   ├── ai_correction_advisor.py #  Calculate diagnostic and final calibration values (Advisor)
+│   ├── ai_optimize.py        #  AI diagnostics + fusion of presets into final correction parameters
 │   ├── correction.py         # <<< CORE: Manual DIP algorithms (Differentiable)
 │   ├── conversions.py        # <<< CORE: Manual RGB<->HSV conversion logic
 │   ├── analysis.py           # for analyze histogram
@@ -160,14 +162,36 @@ print(f"Saved weights to {weights_path.resolve()}")
 PY
 ```
 
-### 6. Run the console helper
+### 6. Run the console helper (scene + diagnostic AI)
 
-```Bash
-python predict.py --weights_path weights/mobilenet_v2-b0353104.pth --input_path data/input/sample1.jpg
+```bash
+python predict.py \
+  --weights_path weights/mobilenet_v2-b0353104.pth \
+  --input_path data/input/your_image.jpg \
+  --fusion_weight 0.6
 ```
 
-- `--weights_path` should point to the MobileNetV2 `.pth` file you just saved.
-- Output: Displays "Original vs Corrected" comparison and saves the result to `data/output/`.
+- `--weights_path`: MobileNetV2 ImageNet checkpoint for scene classification.
+- `--input_path`: Path to your image (RGB/BGR supported).
+- `--fusion_weight`: Blend between AI diagnostics and preset (1.0 = AI-only, 0.0 = preset-only). Defaults to 0.6.
+- `--diagnostic_model_path` (optional): Custom path to the diagnostic CNN. Defaults to the bundled `models/diagnostic_model.pth`.
+- Output: Opens a preview window that shows original vs. corrected along with scene + parameter details and a clickable filter
+  gallery (fused result + any recommended presets). The selected filter is what gets displayed. A copy of the fused correction
+  is written to `data/output/scene_corrected.jpg`, and recommended filter previews (Natural/Vivid/Muted) are saved under
+  `data/output/presets/`.
+  The script also verifies that the same parameters drive both the preview and manual correction pipeline and reports the
+  observed pixel-level change, ensuring the saved image reflects the intended adjustments.
+
+**How `--fusion_weight` affects the result**
+
+- Higher values (closer to **1.0**) lean more on the AI diagnostic model, so exposure/white balance/saturation shifts follow
+  what the diagnostic network recommends for the specific photo. Use this when the scene preset looks off (e.g., misclassified
+  scene) or you want more adaptive corrections.
+- Lower values (closer to **0.0**) trust the scene preset more, so the output follows the typical look for that scene category
+  and reduces the influence of the diagnostic network. Use this when the preset already matches the scene style and you want a
+  more conservative change.
+- The default **0.6** is a balanced mix: it keeps the preset’s intended look while still letting the diagnostic model nudge the
+  parameters toward the measured exposure/white balance/saturation needs of the input image.
 
 ---
 # 🛠️ Visual Studio Submission (For Graders)
