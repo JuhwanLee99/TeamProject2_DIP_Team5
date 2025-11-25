@@ -175,7 +175,10 @@ python predict.py \
 - `--input_path`: Path to your image (RGB/BGR supported).
 - `--fusion_weight`: Blend between AI diagnostics and preset (1.0 = AI-only, 0.0 = preset-only). Defaults to 0.6.
 - `--diagnostic_model_path` (optional): Custom path to the diagnostic CNN. Defaults to the bundled `models/diagnostic_model.pth`.
-- Output: Opens a side-by-side preview and writes `data/output/scene_corrected.jpg`. Recommended filter previews (Natural/Vivid/Muted) are saved under `data/output/presets/`.
+- Output: Opens a preview window that shows original vs. corrected along with scene + parameter details and a clickable filter
+  gallery (fused result + any recommended presets). The selected filter is what gets displayed. A copy of the fused correction
+  is written to `data/output/scene_corrected.jpg`, and recommended filter previews (Natural/Vivid/Muted) are saved under
+  `data/output/presets/`.
 
 ---
 # 🛠️ Visual Studio Submission (For Graders)

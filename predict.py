@@ -15,7 +15,7 @@ from src.ai_optimize import (
 )
 from src.correction import apply_all_corrections_torch
 from src.io_utils import read_image, save_image
-from src.visualization import plot_side_by_side
+from src.visualization import plot_with_filter_gallery
 
 
 # --- Pre/Post-processing helpers ---
@@ -83,7 +83,9 @@ def predict(
     if img_bgr is None:
         return
 
-    img_rgb = img_bgr[..., ::-1]  # BGR -> RGB
+    # Ensure a contiguous RGB array; slicing with ::-1 can create negative strides
+    # that PyTorch tensors do not support.
+    img_rgb = np.ascontiguousarray(img_bgr[..., ::-1])  # BGR -> RGB
 
     print("Classifying scene with MobileNetV2...")
     scene_info = classify_image(img_rgb, weights_path=weights_path)
@@ -106,27 +108,57 @@ def predict(
         fusion_weight=fusion_weight,
     )
 
-    print("\n" + str(advice) + "\n")
+    advice_text = str(advice)
+    print("\n" + advice_text + "\n")
 
     print("Generating corrected preview with fused parameters...")
     corrected_image_np = generate_preview(img_rgb, advice, device=device)
 
+    # Build gallery of previews (fused + recommended filters)
+    filter_previews: list[dict] = [{"name": "AI + Preset", "image": corrected_image_np}]
+
+    recommended_previews: list[dict] = []
+    if advice.recommended_filters:
+        for preset in advice.recommended_filters:
+            preset_img = _apply_params(img_rgb, preset["params"], device)
+            recommended_previews.append({"name": preset["name"], "image": preset_img})
+
+        filter_previews.extend(recommended_previews)
+
     print("Displaying results...")
-    plot_side_by_side(img_rgb, corrected_image_np, "Original", "Corrected (AI + Preset)")
+    info_text = (
+        f"Scene: {scene_info['scene']} (confidence {scene_info['score']:.2f}, raw={scene_info['raw_label']})\n\n"
+        "Final Parameters:\n"
+        f"  gamma={advice.final_params['gamma']:.3f}\n"
+        f"  gains: R={advice.final_params['gain_r']:.3f}, "
+        f"G={advice.final_params['gain_g']:.3f}, B={advice.final_params['gain_b']:.3f}\n"
+        f"  saturation={advice.final_params['sat']:.3f}, hue={advice.final_params['hue']:.3f}\n\n"
+        "Adjustments:\n"
+        f"  Exposure: {advice.exposure_adjustment_percent:+.1f}%\n"
+        f"  White Balance: {advice.white_balance_shift_percent:.1f}% shift\n"
+        f"  Saturation: {advice.saturation_adjustment_percent:+.1f}%\n\n"
+        "Summary:\n  " + "\n  ".join(advice.corrections_summary)
+    )
+
+    plot_with_filter_gallery(
+        img_rgb,
+        filter_previews,
+        info_text=info_text,
+        base_corrected_title="Corrected",
+    )
 
     output_path = Path("data/output/scene_corrected.jpg")
     save_image(output_path, corrected_image_np[..., ::-1])  # Convert back to BGR
     print(f"Corrected image saved to {output_path}")
 
-    if save_presets and advice.recommended_filters:
+    if save_presets and recommended_previews:
         print("Saving additional recommended filter presets...")
         presets_dir = Path("data/output/presets")
         presets_dir.mkdir(parents=True, exist_ok=True)
 
-        for preset in advice.recommended_filters:
-            preset_img = _apply_params(img_rgb, preset["params"], device)
+        for preset in recommended_previews:
             preset_path = presets_dir / f"{preset['name'].lower()}_preview.jpg"
-            save_image(preset_path, preset_img[..., ::-1])
+            save_image(preset_path, preset["image"][..., ::-1])
             print(f" - {preset['name']} saved to {preset_path}")
 
     print("Done.")
