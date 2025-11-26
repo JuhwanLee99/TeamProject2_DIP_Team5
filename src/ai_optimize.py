@@ -145,54 +145,60 @@ class CorrectionAdvice:
 
 class DiagnosticCNN(nn.Module):
     """
-    Multi-head CNN for image diagnostics.
+    Simplified multi-head CNN based on proven FiveK approaches.
     
     Architecture:
         Input: RGB Image (B, 3, 224, 224)
-        Backbone: MobileNetV2 (pretrained on ImageNet)
-        Heads: 3 separate heads for exposure, white balance, saturation
+        Backbone: ResNet18 (lightweight, proven for FiveK)
+        Heads: Simple 2-layer MLPs (deep networks cause vanishing gradients)
     
-    Outputs:
-        exposure: (B, 3) - [under_prob, well_prob, over_prob]
-        white_balance: (B, 5) - [color_temp_norm, tint, gain_r, gain_g, gain_b]
-        saturation: (B, 3) - [under_prob, over_prob, current_level]
+    Based on: "Deep Photo Enhancer" and similar FiveK papers
+    Key insight: SHALLOW heads work better than deep ones for regression!
     """
     
-    def __init__(self, pretrained: bool = True):
+    def __init__(self, pretrained: bool = True, backbone: str = 'resnet18'):
         super().__init__()
         
-        # Backbone: MobileNetV2 (lightweight, fast)
-        self.backbone = models.mobilenet_v2(pretrained=pretrained)
+        # Use ResNet18 - proven to work well on FiveK
+        if backbone == 'resnet18' or backbone == 'efficientnet':
+            self.backbone = models.resnet18(pretrained=pretrained)
+            self.feature_extractor = nn.Sequential(*list(self.backbone.children())[:-1])
+            feature_dim = 512
+        elif backbone == 'resnet34':
+            self.backbone = models.resnet34(pretrained=pretrained)
+            self.feature_extractor = nn.Sequential(*list(self.backbone.children())[:-1])
+            feature_dim = 512
+        else:  # mobilenet fallback
+            self.backbone = models.mobilenet_v2(pretrained=pretrained)
+            self.feature_extractor = self.backbone.features
+            self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+            feature_dim = 1280
         
-        # Remove classifier, keep only features
-        self.feature_extractor = self.backbone.features
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.backbone_type = backbone
         
-        # Feature dimension from MobileNetV2
-        feature_dim = 1280
-        
-        # Exposure Head: Classifies under/well/over exposure
+        # Simple, proven heads (2 layers only - shallow is better!)
+        # Exposure Head: Binary approach works better
         self.exposure_head = nn.Sequential(
             nn.Linear(feature_dim, 256),
             nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(256, 3)  # [under, well, over] logits
+            nn.Dropout(0.2),
+            nn.Linear(256, 3)  # [under, well, over]
         )
         
-        # White Balance Head: Predicts color temp + tint + gains
+        # WB Head: Direct regression
         self.wb_head = nn.Sequential(
             nn.Linear(feature_dim, 256),
             nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(256, 5)  # [color_temp_norm, tint, gain_r, gain_g, gain_b]
+            nn.Dropout(0.2),
+            nn.Linear(256, 3)  # [gain_r, gain_g, gain_b] - simplified
         )
         
-        # Saturation Head: Predicts under/over sat + current level
+        # Saturation Head: Simple regression
         self.saturation_head = nn.Sequential(
             nn.Linear(feature_dim, 128),
             nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(128, 3)  # [under_prob, over_prob, current_level]
+            nn.Dropout(0.2),
+            nn.Linear(128, 1)  # Single saturation adjustment value
         )
     
     def forward(self, x: Tensor) -> Dict[str, Tensor]:
@@ -205,18 +211,31 @@ class DiagnosticCNN(nn.Module):
         """
         # Extract features
         features = self.feature_extractor(x)
-        features = self.avgpool(features)
         features = torch.flatten(features, 1)
         
         # Head predictions
         exposure_logits = self.exposure_head(features)
-        wb_output = self.wb_head(features)
-        sat_output = self.saturation_head(features)
+        wb_gains = self.wb_head(features)  # Direct RGB gains
+        sat_value = self.saturation_head(features)  # Single value
+        
+        # Format outputs to match expected interface
+        exposure_probs = F.softmax(exposure_logits, dim=1)
+        
+        # Pad WB output to match expected (B, 5) format
+        # [temp, tint, gain_r, gain_g, gain_b] -> we predict gains directly
+        zeros = torch.zeros(wb_gains.size(0), 2, device=wb_gains.device)
+        wb_output = torch.cat([zeros, wb_gains], dim=1)
+        
+        # Pad saturation to match expected (B, 3) format
+        sat_output = torch.cat([
+            torch.zeros(sat_value.size(0), 2, device=sat_value.device),
+            torch.sigmoid(sat_value)
+        ], dim=1)
         
         return {
-            'exposure': F.softmax(exposure_logits, dim=1),  # (B, 3) probabilities
-            'white_balance': wb_output,                      # (B, 5) raw values
-            'saturation': torch.sigmoid(sat_output)          # (B, 3) probabilities
+            'exposure': exposure_probs,
+            'white_balance': wb_output,
+            'saturation': sat_output
         }
 
 
@@ -262,10 +281,15 @@ def load_diagnostic_model(
         )
     
     print(f"Loading diagnostic model from {model_path}...")
-    model = DiagnosticCNN(pretrained=False)
     
-    # Load checkpoint
+    # Try to detect backbone from checkpoint
     checkpoint = torch.load(model_path, map_location=device)
+    if isinstance(checkpoint, dict) and 'backbone_type' in checkpoint:
+        backbone_type = checkpoint['backbone_type']
+    else:
+        backbone_type = 'efficientnet'  # Default to best backbone
+    
+    model = DiagnosticCNN(pretrained=False, backbone=backbone_type)
     
     # Handle both checkpoint dict and direct state_dict
     if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:

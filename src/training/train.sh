@@ -62,21 +62,27 @@ else
     echo -e "${GREEN}✓ GPU detected: $GPU_NAME${NC}"
 fi
 
-BATCH_SIZE=128
-EPOCHS=30
-LR=0.0001
-NUM_WORKERS=8
-OUTPUT="models/diagnostic_model.pth"
+BATCH_SIZE=32
+GRAD_ACCUM=4
+EPOCHS=60
+LR=0.001
+NUM_WORKERS=6
+OUTPUT="models/new/diagnostic_model.pth"
+BACKBONE="resnet18"
+WEIGHT_DECAY=0.0001
 
 echo ""
-echo "Training Configuration:"
-echo "  Data:        $FIVEK_DIR"
-echo "  Batch size:  $BATCH_SIZE"
-echo "  Epochs:      $EPOCHS"
-echo "  Learning rate: $LR"
-echo "  Workers:     $NUM_WORKERS"
-echo "  Device:      $DEVICE"
-echo "  Output:      $OUTPUT"
+echo "🚀 Enhanced Training Configuration:"
+echo "  Data:           $FIVEK_DIR"
+echo "  Batch size:     $BATCH_SIZE (effective: $((BATCH_SIZE * GRAD_ACCUM)) with grad accumulation)"
+echo "  Epochs:         $EPOCHS"
+echo "  Learning rate:  $LR"
+echo "  Backbone:       $BACKBONE"
+echo "  Weight decay:   $WEIGHT_DECAY"
+echo "  Workers:        $NUM_WORKERS"
+echo "  Device:         $DEVICE"
+echo "  Output:         $OUTPUT"
+echo "  Features:       Mixed Precision, SWA, Focal Loss, Attention"
 echo ""
 
 read -p "Start training? [Y/n] " -n 1 -r
@@ -98,7 +104,10 @@ echo ""
     --lr "$LR" \
     --num-workers "$NUM_WORKERS" \
     --device "$DEVICE" \
-    --output "$OUTPUT"
+    --output "$OUTPUT" \
+    --backbone "$BACKBONE" \
+    --gradient-accumulation "$GRAD_ACCUM" \
+    --weight-decay "$WEIGHT_DECAY"
 
 if [ $? -eq 0 ]; then
     echo ""

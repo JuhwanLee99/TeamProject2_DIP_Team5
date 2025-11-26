@@ -96,7 +96,7 @@ def compute_saturation_adjustment(input_img: np.ndarray, target_img: np.ndarray)
 
 def compute_exposure_class(gamma: float) -> Tuple[float, float, float]:
     """
-    Convert gamma correction to exposure classification probabilities.
+    Convert gamma correction to exposure classification with SIMPLE thresholds.
     
     Args:
         gamma: Computed gamma correction value
@@ -104,30 +104,27 @@ def compute_exposure_class(gamma: float) -> Tuple[float, float, float]:
     Returns:
         (under_prob, well_prob, over_prob)
     """
-    if gamma > 1.2:
-        # Need to brighten significantly -> underexposed
-        under_prob = min((gamma - 1.0) / 1.0, 1.0)
-        well_prob = max(0.0, 1.0 - under_prob)
-        over_prob = 0.0
-    elif gamma < 0.8:
-        # Need to darken -> overexposed
-        over_prob = min((1.0 - gamma) / 0.5, 1.0)
-        well_prob = max(0.0, 1.0 - over_prob)
-        under_prob = 0.0
+    # Simple, clear thresholds
+    if gamma > 1.3:
+        # Clearly underexposed
+        return 0.9, 0.05, 0.05
+    elif gamma > 1.1:
+        # Slightly underexposed
+        return 0.7, 0.25, 0.05
+    elif gamma < 0.7:
+        # Clearly overexposed
+        return 0.05, 0.05, 0.9
+    elif gamma < 0.9:
+        # Slightly overexposed
+        return 0.05, 0.25, 0.7
     else:
         # Well exposed
-        under_prob = 0.0
-        well_prob = 1.0
-        over_prob = 0.0
-    
-    # Normalize to sum to 1
-    total = under_prob + well_prob + over_prob
-    return under_prob / total, well_prob / total, over_prob / total
+        return 0.1, 0.8, 0.1
 
 
 def compute_saturation_class(sat_adj: float) -> Tuple[float, float]:
     """
-    Convert saturation adjustment to classification probabilities.
+    SIMPLE saturation classification - not used in new model (uses direct regression).
     
     Args:
         sat_adj: Computed saturation adjustment value
@@ -135,20 +132,13 @@ def compute_saturation_class(sat_adj: float) -> Tuple[float, float]:
     Returns:
         (under_prob, over_prob)
     """
-    if sat_adj > 1.1:
-        # Need to increase saturation -> undersaturated
-        under_prob = min((sat_adj - 1.0) / 0.5, 1.0)
-        over_prob = 0.0
-    elif sat_adj < 0.9:
-        # Need to decrease saturation -> oversaturated
-        over_prob = min((1.0 - sat_adj) / 0.3, 1.0)
-        under_prob = 0.0
+    # Simple binary classification
+    if sat_adj > 1.15:
+        return 0.8, 0.1
+    elif sat_adj < 0.85:
+        return 0.1, 0.8
     else:
-        # Well saturated
-        under_prob = 0.0
-        over_prob = 0.0
-    
-    return under_prob, over_prob
+        return 0.1, 0.1
 
 
 class FiveKDataset(Dataset):
@@ -246,17 +236,31 @@ class FiveKDataset(Dataset):
         return pairs
     
     def _build_transforms(self) -> transforms.Compose:
-        """Build image transformations."""
+        """Build image transformations with enhanced augmentation."""
         transform_list = []
         
         if self.augment:
-            # Training augmentations (images are already resized to target size)
+            # Enhanced training augmentations for better generalization
             transform_list.extend([
                 transforms.RandomHorizontalFlip(p=0.5),
-                transforms.RandomCrop(self.image_size),  # Just crop, no resize needed
-                transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.05),
+                transforms.RandomVerticalFlip(p=0.2),  # Vertical flip sometimes
+                transforms.RandomRotation(15),  # Small rotation for robustness
+                transforms.RandomResizedCrop(self.image_size, scale=(0.8, 1.0)),
+                # Stronger color augmentation to learn exposure/WB variations
+                transforms.ColorJitter(
+                    brightness=0.3,  # Increased for exposure variation
+                    contrast=0.3,    # Increased for dynamic range
+                    saturation=0.2,  # Increased for saturation learning
+                    hue=0.05         # Small hue shift
+                ),
+                transforms.RandomGrayscale(p=0.05),  # Occasionally grayscale
+                # Add random blur for robustness
+                transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))
+                if np.random.random() < 0.3 else transforms.Lambda(lambda x: x),
             ])
-        # Validation: no transforms needed, already resized
+        else:
+            # Validation: just center crop to ensure consistent size
+            transform_list.append(transforms.CenterCrop(self.image_size))
         
         # Convert to tensor
         transform_list.append(transforms.ToTensor())
