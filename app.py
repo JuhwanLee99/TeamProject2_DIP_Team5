@@ -121,12 +121,26 @@ def _build_info_text(scene_info: dict, advice, mean_diff: float, max_diff: int, 
         "Summary:\n  " + "\n  ".join(advice.corrections_summary)
     )
 
+def _build_manual_params(base_params: dict, manual_overrides: Optional[dict[str, float]]):
+    if not manual_overrides:
+        return None
+
+    manual_params = base_params.copy()
+    updated = False
+
+    for key in ("gamma", "sat", "hue"):
+        if manual_overrides.get(key) is not None:
+            manual_params[key] = manual_overrides[key]
+            updated = True
+
+    return manual_params if updated else None
 
 def _run_correction(
     img_rgb: np.ndarray,
     mobilenet_path: Optional[str],
     diagnostic_path: Optional[str],
     fusion_weight: float,
+    manual_overrides: Optional[dict[str, float]] = None,
 ) -> dict:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -144,11 +158,18 @@ def _run_correction(
 
     filter_previews: list[dict] = [{"name": "AI + Preset", "image": corrected_image_np}]
     recommended_previews: list[dict] = []
+    manual_preview: Optional[dict] = None
     if advice.recommended_filters:
         for preset in advice.recommended_filters:
             preset_img = _apply_params(img_rgb, preset["params"], device)
             recommended_previews.append({"name": preset["name"], "image": preset_img})
         filter_previews.extend(recommended_previews)
+
+    manual_params = _build_manual_params(advice.final_params, manual_overrides)
+    if manual_params:
+        manual_image = _apply_params(img_rgb, manual_params, device)
+        manual_preview = {"name": "Manual filter", "image": manual_image, "params": manual_params}
+        filter_previews.append(manual_preview)
 
     info_text = _build_info_text(scene_info, advice, mean_diff, max_diff, mean_impact)
 
@@ -163,6 +184,7 @@ def _run_correction(
         "max_diff": max_diff,
         "mean_impact": mean_impact,
         "info_text": info_text,
+        "manual_preview": manual_preview,
     }
 
 
@@ -180,6 +202,10 @@ def _maybe_save_outputs(result: dict, save_outputs: bool) -> None:
         for preset in result["recommended_previews"]:
             preset_path = presets_dir / f"{preset['name'].lower()}_preview.jpg"
             save_image(preset_path, preset["image"][..., ::-1])
+
+    if result.get("manual_preview"):
+        manual_path = Path("data/output/manual_filter_preview.jpg")
+        save_image(manual_path, result["manual_preview"]["image"][..., ::-1])        
 
 
 # Sidebar controls
@@ -206,6 +232,35 @@ save_outputs = st.sidebar.checkbox(
     "Save corrected + preset previews to data/output", value=False
 )
 
+st.sidebar.header("Manual filter preview")
+manual_filter_enabled = st.sidebar.checkbox(
+    "Include user-set filter preview", value=False
+)
+manual_gamma = st.sidebar.slider(
+    "Manual gamma",
+    min_value=0.5,
+    max_value=2.5,
+    value=1.0,
+    step=0.05,
+    help="Adjust midtone brightness for the manual filter preview.",
+)
+manual_saturation = st.sidebar.slider(
+    "Manual saturation",
+    min_value=0.0,
+    max_value=2.0,
+    value=1.0,
+    step=0.05,
+    help="Color intensity multiplier for the manual filter preview.",
+)
+manual_hue = st.sidebar.slider(
+    "Manual hue shift",
+    min_value=-0.5,
+    max_value=0.5,
+    value=0.0,
+    step=0.01,
+    help="Hue rotation applied to the manual filter preview (in normalized units).",
+)
+
 st.title("DIP Team 5 – Color Correction Demo")
 st.markdown(
     "Upload an image to preview automatic corrections combining scene presets "
@@ -219,6 +274,14 @@ run_clicked = st.button("Run correction", type="primary")
 if uploaded:
     input_image = Image.open(uploaded).convert("RGB")
     img_rgb = np.array(input_image)
+
+    manual_overrides = None
+    if manual_filter_enabled:
+        manual_overrides = {
+            "gamma": manual_gamma,
+            "sat": manual_saturation,
+            "hue": manual_hue,
+        }
 
     st.image(
         input_image,
@@ -234,6 +297,7 @@ if uploaded:
                     mobilenet_path or None,
                     diagnostic_path or None,
                     fusion_weight,
+                    manual_overrides=manual_overrides,
                 )
             except FileNotFoundError as exc:
                 st.error(
@@ -295,6 +359,15 @@ if uploaded:
                     f"mean impact vs. original {result['mean_impact']:.2f}"
                 )
 
+                if result.get("manual_preview"):
+                    manual_params = result["manual_preview"]["params"]
+                    st.markdown(
+                        "**Manual filter:** "
+                        f"gamma={manual_params['gamma']:.3f}, "
+                        f"saturation={manual_params['sat']:.3f}, "
+                        f"hue_shift={manual_params['hue']:.3f}"
+                    )
+
                 st.markdown("**Corrections summary:**")
                 st.write(result["advice"].corrections_summary)
 
@@ -323,7 +396,9 @@ if uploaded:
                         mime="image/png",
                     )
                 with download_col2:
-                    if result["recommended_previews"]:
+                    has_presets = bool(result["recommended_previews"])
+                    manual_preview = result.get("manual_preview")
+                    if has_presets or manual_preview:
                         for preset in result["recommended_previews"]:
                             st.download_button(
                                 label=f"Download preset: {preset['name']}",
@@ -332,6 +407,14 @@ if uploaded:
                                 mime="image/png",
                                 key=f"download-{preset['name']}",
                             )
+                        if manual_preview:
+                            st.download_button(
+                                label="Download manual filter",
+                                data=_bytes_from_image(manual_preview["image"]),
+                                file_name="manual_filter_preview.png",
+                                mime="image/png",
+                                key="download-manual",
+                            )    
                     else:
                         st.caption("No preset downloads available.")
 
