@@ -1,0 +1,84 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{3d934211-2ac0-416b-bec0-b13ab20b3a1a}</ProjectGuid>
+    <ProjectHome />
+    <StartupFile>predict.py</StartupFile>
+    <SearchPath />
+    <WorkingDirectory>.</WorkingDirectory>
+    <OutputPath>.</OutputPath>
+    <ProjectTypeGuids>{888888a0-9f3d-457c-b088-3a5042f75d52}</ProjectTypeGuids>
+    <LaunchProvider>Standard Python launcher</LaunchProvider>
+    <InterpreterId>CondaEnv|CondaEnv|dip-hybrid</InterpreterId>
+    <CommandLineArguments>  --weights_path weights/mobilenet_v2-b0353104.pth --input_path data/input/saturation.jpg --fusion_weight 0.6</CommandLineArguments>
+    <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'" />
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'" />
+  <PropertyGroup>
+    <VisualStudioVersion Condition=" '$(VisualStudioVersion)' == '' ">10.0</VisualStudioVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include=".gitignore" />
+    <Content Include="data\input\exposure.jpg" />
+    <Content Include="data\input\sample.jpg" />
+    <Content Include="data\input\Sample_image.txt" />
+    <Content Include="data\input\saturation.jpg" />
+    <Content Include="data\input\wb.jpg" />
+    <Content Include="data\output\ordnerstruktur.txt" />
+    <Content Include="data\output\presets\muted_preview.jpg" />
+    <Content Include="data\output\presets\natural_preview.jpg" />
+    <Content Include="data\output\presets\vivid_preview.jpg" />
+    <Content Include="data\output\scene_corrected.jpg" />
+    <Content Include="docs\Team05_DIP_Plan.docx" />
+    <Content Include="docs\Team05_DIP_Presentation_Material.pptx" />
+    <Content Include="environment.yml" />
+    <Content Include="models\diagnostic_model.pth" />
+    <Content Include="models\diagnostic_model_backup.pth" />
+    <Content Include="README.md" />
+    <Content Include="src\training\train.sh" />
+    <Content Include="src\__pycache__\ai_optimize.cpython-310.pyc" />
+    <Content Include="src\__pycache__\ai_scene.cpython-310.pyc" />
+    <Content Include="src\__pycache__\analysis.cpython-310.pyc" />
+    <Content Include="src\__pycache__\conversions.cpython-310.pyc" />
+    <Content Include="src\__pycache__\correction.cpython-310.pyc" />
+    <Content Include="src\__pycache__\dataset.cpython-310.pyc" />
+    <Content Include="src\__pycache__\io_utils.cpython-310.pyc" />
+    <Content Include="src\__pycache__\model.cpython-310.pyc" />
+    <Content Include="src\__pycache__\visualization.cpython-310.pyc" />
+    <Content Include="TeamProject2_DIP_Team5.pyproj" />
+    <Content Include="weights\mobilenet_v2-b0353104.pth" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="app.py" />
+    <Compile Include="predict.py" />
+    <Compile Include="src\ai_optimize.py" />
+    <Compile Include="src\ai_scene.py" />
+    <Compile Include="src\analysis.py" />
+    <Compile Include="src\conversions.py" />
+    <Compile Include="src\correction.py" />
+    <Compile Include="src\io_utils.py" />
+    <Compile Include="src\training\dataset.py" />
+    <Compile Include="src\training\train_diagnostic_model.py" />
+    <Compile Include="src\training\__init__.py" />
+    <Compile Include="src\visualization.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="data\" />
+    <Folder Include="data\input" />
+    <Folder Include="data\output" />
+    <Folder Include="data\output\presets" />
+    <Folder Include="docs" />
+    <Folder Include="models" />
+    <Folder Include="src" />
+    <Folder Include="src\training" />
+    <Folder Include="src\__pycache__" />
+    <Folder Include="weights" />
+  </ItemGroup>
+  <ItemGroup>
+    <InterpreterReference Include="CondaEnv|CondaEnv|dip-hybrid" />
+  </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
+</Project>
