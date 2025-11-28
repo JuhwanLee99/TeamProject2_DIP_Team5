@@ -2,9 +2,16 @@
 
 import argparse
 from pathlib import Path
+import os
 
 import numpy as np
 import torch
+
+
+# Disable torchvision's optional image backend to avoid libjpeg warnings when
+# libjpeg/libpng are missing from the environment. The CLI only relies on
+# models/transforms, so disabling the backend is safe.
+os.environ.setdefault("TORCHVISION_DISABLE_IMAGE", "1")
 from torchvision import transforms
 
 from src.ai_scene import classify_image

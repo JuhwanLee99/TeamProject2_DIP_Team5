@@ -14,6 +14,7 @@ Updated to surface every detail available from the CLI `predict.py` flow:
 HOW TO RUN : streamlit run app.py --server.port 8501
 """
 
+import os
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
@@ -22,6 +23,11 @@ import numpy as np
 import streamlit as st
 import torch
 from PIL import Image
+
+# Disable torchvision's optional image backend to avoid libjpeg warnings when
+# the C extension is unavailable. The app only needs models/transforms, so this
+# does not affect functionality.
+os.environ.setdefault("TORCHVISION_DISABLE_IMAGE", "1")
 from torchvision import transforms
 
 from src.ai_optimize import generate_preview, load_diagnostic_model, optimize_corrections
@@ -104,6 +110,38 @@ def _bytes_from_image(image_np: np.ndarray, format: str = "PNG") -> bytes:
     buffer.seek(0)
     return buffer.read()
 
+def _right_aligned_download_button(
+    *,
+    label: str,
+    data: bytes,
+    file_name: str,
+    mime: str,
+    key: str | None = None,
+):
+    """Render a download button anchored to the top-right of its container."""
+
+    st.markdown(
+        "<div style='display: flex; justify-content: flex-end; "
+        "margin-top: -6px; margin-right: -6px;'>",
+        unsafe_allow_html=True,
+    )
+    st.download_button(
+        label=label,
+        data=data,
+        file_name=file_name,
+        mime=mime,
+        key=key,
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _download_button_placeholder(height_px: int = 90):
+    """Reserve vertical space where a download button would appear."""
+
+    st.markdown(
+        f"<div style='display: flex; justify-content: flex-end; height: {height_px}px;'></div>",
+        unsafe_allow_html=True,
+    )
 
 def _build_info_text(scene_info: dict, advice, mean_diff: float, max_diff: int, mean_impact: float) -> str:
     return (
@@ -346,16 +384,20 @@ if uploaded:
                 f"> ✅ **Scene:** `{result['scene_info']['scene']}`"
             )
 
-            left, right = st.columns(2)
+            left, right = st.columns(2, vertical_alignment="center")
             with left:
-                st.subheader("Original")
+                left_header, left_spacer = st.columns([0.7, 0.3], vertical_alignment="center")
+                with left_header:
+                    st.subheader("Original")
+                with left_spacer:
+                    _download_button_placeholder()
                 st.image(_to_pil_image(img_rgb), use_container_width=True)
             with right:
-                name_col, btn_col=st.columns([0.7, 0.3], vertical_alignment='center')
+                name_col, btn_col = st.columns([0.7, 0.3], vertical_alignment="center")
                 with name_col:
                     st.subheader("Corrected Image")
                 with btn_col:
-                    st.download_button(
+                    _right_aligned_download_button(
                         label="Download image",
                         data=_bytes_from_image(result["corrected_image"]),
                         file_name="scene_corrected.png",
@@ -409,15 +451,17 @@ if uploaded:
         with tab_filters:
             st.subheader("Recommended filter previews")
             if result["filter_previews"]:
-                cols = st.columns(2)
+                cols = st.columns(2, vertical_alignment="top")
                 for idx, preview in enumerate(result["filter_previews"]):
                     with cols[idx % 2]:
-                        name_col, btn_col = st.columns([0.7,0.3],vertical_alignment='center')
-                        with name_col:
+                        header_left, header_right = st.columns(
+                            [0.65, 0.35], vertical_alignment="center"
+                        )
+                        with header_left:
                             st.markdown(f"**{preview['name']}**")
-                        with btn_col:
-                            st.download_button(
-                                label=f"Download image",
+                        with header_right:
+                            _right_aligned_download_button(
+                                label="Download image",
                                 data=_bytes_from_image(preview["image"]),
                                 file_name=f"{preview['name'].lower().replace(' ', '_')}.png",
                                 mime="image/png",
