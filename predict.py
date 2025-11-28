@@ -67,6 +67,26 @@ def _apply_params(img_rgb: np.ndarray, params: dict, device: torch.device) -> np
     corrected_tensor = apply_all_corrections_torch(input_tensor, params_tensor)
     return postprocess(corrected_tensor[0])
 
+def _build_manual_params(
+    base_params: dict,
+    manual_gamma: float | None,
+    manual_saturation: float | None,
+    manual_hue_shift: float | None,
+):
+    manual_params = base_params.copy()
+    updated = False
+
+    if manual_gamma is not None:
+        manual_params["gamma"] = manual_gamma
+        updated = True
+    if manual_saturation is not None:
+        manual_params["sat"] = manual_saturation
+        updated = True
+    if manual_hue_shift is not None:
+        manual_params["hue"] = manual_hue_shift
+        updated = True
+
+    return manual_params if updated else None
 
 def _validate_application(
     img_rgb: np.ndarray, advice, device: torch.device
@@ -100,6 +120,9 @@ def predict(
     fusion_weight: float = 0.6,
     diagnostic_model_path: str | Path | None = None,
     save_presets: bool = True,
+    manual_gamma: float | None = None,
+    manual_saturation: float | None = None,
+    manual_hue_shift: float | None = None,
 ) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -169,6 +192,21 @@ def predict(
 
         filter_previews.extend(recommended_previews)
 
+    manual_preview = None
+    manual_params = _build_manual_params(
+        advice.final_params, manual_gamma, manual_saturation, manual_hue_shift
+    )
+    if manual_params:
+        manual_image = _apply_params(img_rgb, manual_params, device)
+        manual_preview = {"name": "Manual filter", "image": manual_image, "params": manual_params}
+        filter_previews.append(manual_preview)
+        print(
+            "Added manual filter preview with overrides: "
+            f"gamma={manual_params['gamma']:.3f}, "
+            f"saturation={manual_params['sat']:.3f}, "
+            f"hue={manual_params['hue']:.3f}"
+        )    
+
     print("Displaying results...")
     info_text = (
         f"Scene: {scene_info['scene']} (confidence {scene_info['score']:.2f}, raw={scene_info['raw_label']})\n\n"
@@ -195,7 +233,7 @@ def predict(
     save_image(output_path, corrected_image_np[..., ::-1])  # Convert back to BGR
     print(f"Corrected image saved to {output_path}")
 
-    if save_presets and recommended_previews:
+    if save_presets and (recommended_previews or manual_preview):
         print("Saving additional recommended filter presets...")
         presets_dir = Path("data/output/presets")
         presets_dir.mkdir(parents=True, exist_ok=True)
@@ -204,6 +242,11 @@ def predict(
             preset_path = presets_dir / f"{preset['name'].lower()}_preview.jpg"
             save_image(preset_path, preset["image"][..., ::-1])
             print(f" - {preset['name']} saved to {preset_path}")
+
+        if manual_preview:
+            manual_path = presets_dir / "manual_filter_preview.jpg"
+            save_image(manual_path, manual_preview["image"][..., ::-1])
+            print(f" - Manual filter saved to {manual_path}")    
 
     print("Done.")
 
@@ -230,6 +273,24 @@ if __name__ == "__main__":
         help="Optional path to the diagnostic CNN weights (.pth). Uses bundled model if omitted.",
     )
     parser.add_argument(
+        "--manual_gamma",
+        type=float,
+        default=None,
+        help="Override gamma for an additional manual filter preview (e.g., 0.8 to darken).",
+    )
+    parser.add_argument(
+        "--manual_saturation",
+        type=float,
+        default=None,
+        help="Override saturation multiplier for the manual filter preview (1.0 = no change).",
+    )
+    parser.add_argument(
+        "--manual_hue_shift",
+        type=float,
+        default=None,
+        help="Hue shift for the manual filter preview (normalized, e.g., 0.1 for subtle warmth).",
+    )
+    parser.add_argument(
         "--disable_presets",
         action="store_true",
         help="Skip saving the recommended filter preset previews.",
@@ -242,4 +303,7 @@ if __name__ == "__main__":
         fusion_weight=args.fusion_weight,
         diagnostic_model_path=args.diagnostic_model_path,
         save_presets=not args.disable_presets,
+        manual_gamma=args.manual_gamma,
+        manual_saturation=args.manual_saturation,
+        manual_hue_shift=args.manual_hue_shift,
     )

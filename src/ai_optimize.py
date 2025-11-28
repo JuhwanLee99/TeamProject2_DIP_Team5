@@ -497,6 +497,16 @@ def _generate_summary(
 def _generate_filter_presets(final_params: Dict[str, float]) -> List[Dict[str, float]]:
     """Generate alternative filter preset variations."""
     base = final_params.copy()
+    def _clamp_params(params: Dict[str, float]) -> Dict[str, float]:
+        """Ensure preset parameters remain within safe display bounds."""
+        return {
+            'gamma': np.clip(params['gamma'], 0.5, 2.5),
+            'gain_r': np.clip(params['gain_r'], 0.7, 1.4),
+            'gain_g': np.clip(params['gain_g'], 0.7, 1.4),
+            'gain_b': np.clip(params['gain_b'], 0.7, 1.4),
+            'sat': np.clip(params['sat'], 0.6, 1.6),
+            'hue': np.clip(params['hue'], -0.1, 0.1)
+        }
     
     presets = [
         {
@@ -505,19 +515,103 @@ def _generate_filter_presets(final_params: Dict[str, float]) -> List[Dict[str, f
         },
         {
             'name': 'Vivid',
-            'params': {
+            'params': _clamp_params({
                 **base,
-                'sat': min(base['sat'] * 1.15, 1.6),
-                'gamma': base['gamma'] * 0.95
-            }
+                'sat': base['sat'] * 1.4,
+                'gamma': base['gamma'] * 0.86,
+                'hue': base['hue'] + 0.01
+            })
         },
         {
             'name': 'Muted',
-            'params': {
+            'params': _clamp_params({
                 **base,
-                'sat': max(base['sat'] * 0.85, 0.6),
-                'gamma': base['gamma'] * 1.05
-            }
+                'sat': base['sat'] * 0.65,
+                'gamma': base['gamma'] * 1.2,
+                'hue': base['hue'] - 0.01
+            })
+        },
+        {
+            'name': 'Warm Glow',
+            'params': _clamp_params({
+                **base,
+                'gain_r': base['gain_r'] * 1.12,
+                'gain_b': base['gain_b'] * 0.9,
+                'gamma': base['gamma'] * 0.88,
+                'sat': base['sat'] * 1.15,
+                'hue': base['hue'] + 0.025
+            })
+        },
+        {
+            'name': 'Cool Breeze',
+            'params': _clamp_params({
+                **base,
+                'gain_r': base['gain_r'] * 0.9,
+                'gain_b': base['gain_b'] * 1.12,
+                'gamma': base['gamma'] * 0.9,
+                'sat': base['sat'] * 1.1,
+                'hue': base['hue'] - 0.03
+            })
+        },
+        {
+            'name': 'High Contrast',
+            'params': _clamp_params({
+                **base,
+                'sat': base['sat'] * 1.45,
+                'gamma': base['gamma'] * 0.8
+            })
+        },
+        {
+            'name': 'Filmic Matte',
+            'params': _clamp_params({
+                **base,
+                'sat': base['sat'] * 0.75,
+                'gamma': base['gamma'] * 1.12,
+                'hue': base['hue'] + 0.015
+            })
+        },
+        {
+            'name': 'Teal & Orange',
+            'params': _clamp_params({
+                **base,
+                'gain_r': base['gain_r'] * 1.1,
+                'gain_b': base['gain_b'] * 0.92,
+                'sat': base['sat'] * 1.3,
+                'gamma': base['gamma'] * 0.9,
+                'hue': base['hue'] + 0.035
+            })
+        },
+        {
+            'name': 'Midnight Boost',
+            'params': _clamp_params({
+                **base,
+                'gain_r': base['gain_r'] * 0.94,
+                'gain_b': base['gain_b'] * 1.08,
+                'sat': base['sat'] * 1.25,
+                'gamma': base['gamma'] * 0.78,
+                'hue': base['hue'] - 0.025
+            })
+        },
+        {
+            'name': 'Golden Hour',
+            'params': _clamp_params({
+                **base,
+                'gain_r': base['gain_r'] * 1.15,
+                'gain_g': base['gain_g'] * 1.02,
+                'gain_b': base['gain_b'] * 0.9,
+                'sat': base['sat'] * 1.2,
+                'gamma': base['gamma'] * 0.9,
+                'hue': base['hue'] + 0.03
+            })
+        },
+        {
+            'name': 'Pastel Fade',
+            'params': _clamp_params({
+                **base,
+                'sat': base['sat'] * 0.7,
+                'gamma': base['gamma'] * 1.18,
+                'hue': base['hue'] - 0.02
+            })
         }
     ]
     
