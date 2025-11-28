@@ -261,15 +261,27 @@ manual_hue = st.sidebar.slider(
     help="Hue rotation applied to the manual filter preview (in normalized units).",
 )
 
-st.title("DIP Team 5 – Color Correction Demo")
-st.markdown(
-    "Upload an image to preview automatic corrections combining scene presets "
-    "and AI diagnostics. Ensure the required weight files exist in the provided "
-    "paths before running."
-)
+st.title("Color Correction")
+with st.container():
+    st.info(
+        "This system performs **AI-assisted color correction** on uploaded images.\n\n"
+        "It combines **scene classification**, **AI diagnostics**, and "
+        "**manual DIP algorithms** to automatically enhance exposure, white balance, "
+        "and saturation.\n\n"
+        "Simply upload a photo to see the improved and recommended filter results."
+    )
+
+if "result" not in st.session_state:
+    st.session_state["result"] = None
+if "last_uploaded_name" not in st.session_state:
+    st.session_state["last_uploaded_name"] = None
 
 uploaded = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
-run_clicked = st.button("Run correction", type="primary")
+run_clicked = st.button("Run correction", type="primary", width='stretch')
+
+if uploaded is not None and uploaded.name != st.session_state["last_uploaded_name"]:
+    st.session_state["result"] = None
+    st.session_state["last_uploaded_name"] = uploaded.name
 
 if uploaded:
     input_image = Image.open(uploaded).convert("RGB")
@@ -282,12 +294,12 @@ if uploaded:
             "sat": manual_saturation,
             "hue": manual_hue,
         }
-
-    st.image(
-        input_image,
-        caption="Uploaded image",
-        use_column_width=True,
-    )
+    if st.session_state["result"] is None and not run_clicked:
+        st.image(
+            input_image,
+            caption="Uploaded image",
+            use_container_width=True,
+        )
 
     if run_clicked:
         with st.spinner("Running scene analysis and correction..."):
@@ -303,120 +315,118 @@ if uploaded:
                 st.error(
                     f"Missing model weights: {exc}. Upload the required files or update the paths."
                 )
+                st.session_state["result"] = None
             except RuntimeError as exc:
                 st.error(
                     f"Model loading failed: {exc}. Ensure weights are available locally."
                 )
+                st.session_state["result"] = None
             except Exception as exc:  # noqa: BLE001
                 st.error(f"Unexpected error while processing the image: {exc}")
+                st.session_state["result"] = None
             else:
                 _maybe_save_outputs(result, save_outputs)
+                st.session_state["result"] = result
 
-                if result["max_diff"] > 2 or result["mean_diff"] > 0.5:
-                    st.warning(
-                        "Preview path mismatch detected (mean diff > 0.5 or max diff > 2). "
-                        "Showing validated pipeline output."
-                    )
-                else:
-                    st.success("Validated that preview and manual pipelines match closely.")
+    result = st.session_state["result"]
+    if result is not None:
 
-                left, right = st.columns(2)
-                with left:
-                    st.subheader("Original")
-                    st.image(_to_pil_image(img_rgb), use_column_width=True)
-                with right:
-                    st.subheader("Validated corrected output")
-                    st.image(_to_pil_image(result["corrected_image"]), use_column_width=True)
+        if result["max_diff"] > 2 or result["mean_diff"] > 0.5:
+            st.warning(
+                "Preview path mismatch detected (mean diff > 0.5 or max diff > 2). "
+                "Showing validated pipeline output."
+            )
 
-                st.markdown("---")
-                st.subheader("Analysis summary")
-                st.markdown(
-                    f"**Scene:** {result['scene_info']['scene']} "
-                    f"(confidence {result['scene_info']['score']:.2f}, "
-                    f"raw label {result['scene_info']['raw_label']})"
-                )
-                st.markdown(f"**Device:** {result['device']}")
-                st.markdown(
-                    "**Final parameters:** "
-                    f"gamma={result['advice'].final_params['gamma']:.3f}, "
-                    f"gains=({result['advice'].final_params['gain_r']:.3f}, "
-                    f"{result['advice'].final_params['gain_g']:.3f}, "
-                    f"{result['advice'].final_params['gain_b']:.3f}), "
-                    f"saturation={result['advice'].final_params['sat']:.3f}, "
-                    f"hue_shift={result['advice'].final_params['hue']:.3f}"
-                )
+        tab_result, tab_detail, tab_filters = st.tabs(
+            ["🔍 Result View", "📊 Detailed Analysis", "🎨 Filter Gallery"]
+        )
 
-                st.markdown(
-                    "**Adjustments:** "
-                    f"Exposure {result['advice'].exposure_adjustment_percent:+.1f}%, "
-                    f"White Balance shift {result['advice'].white_balance_shift_percent:.1f}%, "
-                    f"Saturation {result['advice'].saturation_adjustment_percent:+.1f}%"
-                )
+        with tab_result:
+            st.markdown(
+                f"> ✅ **Scene:** `{result['scene_info']['scene']}`"
+            )
 
-                st.markdown(
-                    f"**Validation:** mean diff {result['mean_diff']:.2f}, "
-                    f"max diff {result['max_diff']}, "
-                    f"mean impact vs. original {result['mean_impact']:.2f}"
-                )
-
-                if result.get("manual_preview"):
-                    manual_params = result["manual_preview"]["params"]
-                    st.markdown(
-                        "**Manual filter:** "
-                        f"gamma={manual_params['gamma']:.3f}, "
-                        f"saturation={manual_params['sat']:.3f}, "
-                        f"hue_shift={manual_params['hue']:.3f}"
-                    )
-
-                st.markdown("**Corrections summary:**")
-                st.write(result["advice"].corrections_summary)
-
-                with st.expander("Full advice (text from predict.py)"):
-                    st.code(str(result["advice"]))
-                    st.code(result["info_text"])
-
-                st.markdown("---")
-                st.subheader("Recommended filter previews")
-                if result["filter_previews"]:
-                    cols = st.columns(2)
-                    for idx, preview in enumerate(result["filter_previews"]):
-                        with cols[idx % 2]:
-                            st.markdown(f"**{preview['name']}**")
-                            st.image(_to_pil_image(preview["image"]), use_column_width=True)
-                else:
-                    st.info("No additional presets were recommended for this image.")
-
-                st.markdown("---")
-                download_col1, download_col2 = st.columns(2)
-                with download_col1:
+            left, right = st.columns(2)
+            with left:
+                st.subheader("Original")
+                st.image(_to_pil_image(img_rgb), use_container_width=True)
+            with right:
+                name_col, btn_col=st.columns([0.7, 0.3], vertical_alignment='center')
+                with name_col:
+                    st.subheader("Corrected Image")
+                with btn_col:
                     st.download_button(
-                        label="Download corrected image",
+                        label="Download image",
                         data=_bytes_from_image(result["corrected_image"]),
                         file_name="scene_corrected.png",
                         mime="image/png",
                     )
-                with download_col2:
-                    has_presets = bool(result["recommended_previews"])
-                    manual_preview = result.get("manual_preview")
-                    if has_presets or manual_preview:
-                        for preset in result["recommended_previews"]:
+                st.image(_to_pil_image(result["corrected_image"]), use_container_width=True)
+        
+        with tab_detail:
+            st.subheader("Analysis summary")
+
+            st.markdown(
+                f"**Scene:** {result['scene_info']['scene']} "
+                f"(confidence {result['scene_info']['score']:.2f}, "
+                f"raw label {result['scene_info']['raw_label']})"
+            )
+            st.markdown(f"**Device:** `{result['device']}`")
+
+            st.markdown(
+                "**Final parameters:**  \n"
+                f"- gamma = `{result['advice'].final_params['gamma']:.3f}`  \n"
+                f"- gains = (`{result['advice'].final_params['gain_r']:.3f}`, "
+                f"`{result['advice'].final_params['gain_g']:.3f}`, "
+                f"`{result['advice'].final_params['gain_b']:.3f}`)  \n"
+                f"- saturation = `{result['advice'].final_params['sat']:.3f}`  \n"
+                f"- hue_shift = `{result['advice'].final_params['hue']:.3f}`"
+            )
+
+            st.markdown(
+                "**Adjustments:**  \n"
+                f"- Exposure: `{result['advice'].exposure_adjustment_percent:+.1f}%`  \n"
+                f"- White Balance shift: `{result['advice'].white_balance_shift_percent:.1f}%`  \n"
+                f"- Saturation: `{result['advice'].saturation_adjustment_percent:+.1f}%`"
+            )
+
+            st.markdown(
+                "**Validation (preview vs manual pipeline):**  \n"
+                f"- mean diff = `{result['mean_diff']:.2f}`  \n"
+                f"- max diff = `{result['max_diff']}`  \n"
+                f"- mean impact vs. original = `{result['mean_impact']:.2f}`"
+            )
+            
+            if result.get("manual_preview"):
+                manual_params = result["manual_preview"]["params"]
+                st.markdown(
+                    "**Manual filter preview:**  \n"
+                    f"- gamma = `{manual_params['gamma']:.3f}`  \n"
+                    f"- saturation = `{manual_params['sat']:.3f}`  \n"
+                    f"- hue_shift = `{manual_params['hue']:.3f}`"
+                )
+
+        with tab_filters:
+            st.subheader("Recommended filter previews")
+            if result["filter_previews"]:
+                cols = st.columns(2)
+                for idx, preview in enumerate(result["filter_previews"]):
+                    with cols[idx % 2]:
+                        name_col, btn_col = st.columns([0.7,0.3],vertical_alignment='center')
+                        with name_col:
+                            st.markdown(f"**{preview['name']}**")
+                        with btn_col:
                             st.download_button(
-                                label=f"Download preset: {preset['name']}",
-                                data=_bytes_from_image(preset["image"]),
-                                file_name=f"{preset['name'].lower()}_preview.png",
+                                label=f"Download image",
+                                data=_bytes_from_image(preview["image"]),
+                                file_name=f"{preview['name'].lower().replace(' ', '_')}.png",
                                 mime="image/png",
-                                key=f"download-{preset['name']}",
+                                key=f"download-{preview['name']}-{idx}",
                             )
-                        if manual_preview:
-                            st.download_button(
-                                label="Download manual filter",
-                                data=_bytes_from_image(manual_preview["image"]),
-                                file_name="manual_filter_preview.png",
-                                mime="image/png",
-                                key="download-manual",
-                            )    
-                    else:
-                        st.caption("No preset downloads available.")
+                        st.image(_to_pil_image(preview["image"]), use_container_width=True)
+                        
+            else:
+                st.info("No additional presets were recommended for this image.")
 
 elif run_clicked:
     st.warning("Please upload an image before running the correction.")
