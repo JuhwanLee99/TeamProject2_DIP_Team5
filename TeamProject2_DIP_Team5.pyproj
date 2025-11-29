@@ -10,7 +10,7 @@
     <OutputPath>.</OutputPath>
     <ProjectTypeGuids>{888888a0-9f3d-457c-b088-3a5042f75d52}</ProjectTypeGuids>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <InterpreterId>CondaEnv|CondaEnv|dip-hybrid</InterpreterId>
+    <InterpreterId>CondaEnv|CondaEnv|DIP_Project2</InterpreterId>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
     <IsWindowsApplication>False</IsWindowsApplication>
     <StartupFile>main.py</StartupFile>
@@ -79,7 +79,7 @@
     <Folder Include="weights" />
   </ItemGroup>
   <ItemGroup>
-    <InterpreterReference Include="CondaEnv|CondaEnv|dip-hybrid" />
+    <InterpreterReference Include="CondaEnv|CondaEnv|DIP_Project2" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
 </Project>
