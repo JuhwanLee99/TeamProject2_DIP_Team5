@@ -200,3 +200,6 @@ To comply with the assignment submission requirement ("Submit source codes... in
 We primarily developed in VS Code for Python compatibility.
 For submission, we have generated a Visual Studio Solution (.sln).
 You can open the .sln file in Visual Studio 2022 (with Python workload installed) to run the project.
+
+It automatically detects the conda environment `DIP_Project2` that has been created before and uses it for the dependencies.
+A wrapper python file `main.py` is set up as startup file, as it is used to execute the same commands as the console helper would do.
