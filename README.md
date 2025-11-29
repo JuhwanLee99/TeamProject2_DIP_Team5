@@ -203,3 +203,39 @@ You can open the .sln file in Visual Studio 2022 (with Python workload installed
 
 It automatically detects the conda environment `DIP_Project2` that has been created before and uses it for the dependencies.
 A wrapper python file `main.py` is set up as startup file, as it is used to execute the same commands as the console helper would do.
+
+---
+
+## 🐍 Fixing Visual Studio Conda Environment Issues
+
+If Visual Studio shows an error like:
+
+> Failed to launch debugger.  
+> The environment `CondaEnv|CondaEnv|DIP_Project2` appears to be incorrectly configured or missing.
+
+follow these steps to re-connect the existing Conda environment `DIP_Project2` to Visual Studio.
+
+### 1. Remove the broken Python environment entry in Visual Studio
+
+1. In the top menu, go to **View → Other Windows → Python Environments**.
+2. In the list, look for an entry such as **`CondaEnv|CondaEnv|DIP_Project2`**.
+3. Select it and click **Remove**.  
+   > This only deletes the registration inside Visual Studio – the actual Conda environment on disk remains intact.
+
+### 2. Re-add the existing Conda environment `DIP_Project2`
+
+1. In the **Python Environments** window, click the **`+` (Add Environment)** button.
+2. Choose **Existing environment**.
+3. Set **Environment type** to **Conda**.
+4. For the **Interpreter** path, browse to your environment’s Python executable, for example:
+   ```text
+   C:\Users\jimmy\miniconda3\envs\DIP_Project2\python.exe
+   ```
+5. Give it a clear name such as DIP_Project2 and click Create/Add.
+
+### 3. Set DIP_Project2 as the project interpreter and run
+
+1. In Solution Explorer, right-click on the project and select **Properties**.
+2. Under the **General** tab, set the **Python Environment** to the newly added **DIP_Project2**.
+3. Save and close the properties window.
+4. Now press F5 or click the Run button – the project should start using the Conda environment DIP_Project2 without the previous debugger error.
