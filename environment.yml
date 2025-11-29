@@ -2,9 +2,9 @@
 # To create the environment, run:
 #   conda env create -f environment.yml
 # To activate the environment, run:
-#   conda activate dip-hybrid
+#   conda activate DIP_Project2
 #
-name: dip-hybrid
+name: DIP_Project2
 channels:
   - pytorch   # Primary channel for PyTorch
   - conda-forge # Primary channel for most other packages

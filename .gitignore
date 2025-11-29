@@ -27,7 +27,7 @@ desktop.ini
 .idea/
 
 # Visual Studio (Full IDE)
-*.sln
+# *.sln
 *.suo
 *.user
 *.vcxproj*
